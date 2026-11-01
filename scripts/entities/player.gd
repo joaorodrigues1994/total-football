@@ -6,6 +6,7 @@ extends CharacterBody2D
 enum Team { A, B }
 
 @export var team := Team.A
+@export var role := ""
 
 ## Indica (com o "P") que o jogador humano controla este atleta.
 var is_controlled := false:
