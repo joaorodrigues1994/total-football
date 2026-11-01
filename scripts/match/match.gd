@@ -10,6 +10,8 @@ const START_ROLES := ["WR1", "WR2", "WR3"]
 const READY_ROLES := ["RB"]
 const SNAP_TIME := 0.3
 const HANDOFF_DISTANCE := 18.0
+## Depois da entrega o QB sai lateralmente da frente do RB por este tempo.
+const CLEAR_TIME := 0.7
 
 @export var camera: MatchCamera
 ## Linha de jarda da bola (0 = goal line esquerda, 100 = direita).
@@ -27,6 +29,8 @@ var _rb: Player
 var _carrier: Player
 var _snap_progress := 0.0
 var _snap_from := Vector2.ZERO
+var _clear_time := 0.0
+var _clear_side := -1.0
 
 
 func _ready() -> void:
@@ -60,15 +64,16 @@ func _physics_process(delta: float) -> void:
 			_rb.input_dir = to_qb.normalized()
 			_qb.input_dir = -to_qb.normalized()
 			if to_qb.length() <= HANDOFF_DISTANCE:
-				_qb.input_dir = Vector2.ZERO
-				_qb.facing = Vector2.RIGHT
 				_carrier = _rb
 				_controller.controlled = _rb
 				_controller.enabled = true
 				camera.target = _rb
+				_clear_time = CLEAR_TIME
+				_clear_side = -1.0
 				state = State.RUNNING
 		State.RUNNING:
 			_ball.world_pos = _hands(_carrier)
+			_clear_qb(delta)
 
 
 func _setup() -> void:
@@ -113,6 +118,20 @@ func _spawn(slots: Array, team: Player.Team, facing: Vector2) -> Array[Player]:
 		add_child(player)
 		players.append(player)
 	return players
+
+
+## O QB sai para o lado oposto ao que o RB corta; sem corte, vai para a esquerda do ataque.
+func _clear_qb(delta: float) -> void:
+	if _clear_time <= 0.0:
+		return
+	_clear_time -= delta
+	if absf(_rb.input_dir.y) > 0.3:
+		_clear_side = -signf(_rb.input_dir.y)
+	if _clear_time > 0.0:
+		_qb.input_dir = Vector2(0.0, _clear_side)
+	else:
+		_qb.input_dir = Vector2.ZERO
+		_qb.facing = Vector2.RIGHT
 
 
 func _hands(player: Player) -> Vector2:
