@@ -30,11 +30,18 @@ var facing := Vector2.RIGHT
 ## Pose de largada ("stance", "start", "ready") mostrada enquanto o jogador está parado.
 var pose := ""
 
+## Recebedor selecionado para o passe (mostra o triângulo amarelo).
+var is_pass_target := false:
+	set(value):
+		is_pass_target = value
+		_target_marker.visible = value
+
 var action := Action.NONE
 var _action_timer := 0.0
 var _juke_cooldown := 0.0
 var _sprite := AnimatedSprite2D.new()
 var _marker := ControlMarker.new()
+var _target_marker := TargetMarker.new()
 
 
 func _ready() -> void:
@@ -47,6 +54,9 @@ func _ready() -> void:
 	_marker.z_index = 10
 	_marker.visible = is_controlled
 	_sprite.add_child(_marker)
+	_target_marker.z_index = 10
+	_target_marker.visible = is_pass_target
+	_sprite.add_child(_target_marker)
 	add_child(_sprite)
 
 
