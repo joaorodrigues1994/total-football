@@ -301,6 +301,11 @@ func defender_target(player: Player) -> Variant:
 		State.SNAP, State.HANDOFF, State.DROPBACK, State.PASSING:
 			if player in defense and (play_type == PlayType.RUN or role in RUSH_ROLES):
 				return (_carrier if _carrier else _qb).global_position
+			if player in defense:  # passe: quem não rusha acompanha o recebedor mais próximo
+				return _nearest_of(_receivers, player.global_position, INF).global_position
+		State.FLIGHT:
+			if player in defense:
+				return _flight.to
 		State.RUNNING:
 			if player in defense:
 				return _carrier.global_position

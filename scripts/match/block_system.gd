@@ -5,26 +5,24 @@ extends Node
 ## criado antes dos jogadores para atualizar velocidade/empurrão antes de eles se moverem.
 
 const STAND_OFF := 15.0
-const ENGAGE_DISTANCE := 20.0
+## Corpos se tocam a 14 px: abaixo disto o bloqueador encostou num defensor e engaja.
+const ENGAGE_DISTANCE := 17.0
 const ENGAGE_TIME := 0.15
 const ENGAGE_SLOW := 0.2
 ## Perseguindo um alvo que escapou por mais tempo que isto, o bloqueador procura outro.
 const CHASE_TIMEOUT := 2.5
 const CONTEST_INTERVAL := 0.3
-const START_GRIP := 0.7
+const START_GRIP := 0.5
 const START_GRIP_PER_POINT := 0.004
 const GRIP_BLOCKING := 0.5
 const GRIP_LOSING := 0.25
 ## Desgaste do bloqueio: sem vantagem do bloqueador, ele cede aos poucos.
-const GRIP_DECAY := 0.02
-const GRIP_PER_POINT := 0.006
+const GRIP_DECAY := 0.04
+const GRIP_PER_POINT := 0.008
 const MAX_EDGE := 40.0
 const STRENGTH_WEIGHT := 0.25
-const RANDOM_SPREAD := 22.0
-## Velocidade (0 a 1) do defensor em cada estado de confronto.
-const FIGHT_SPEED := 0.4
-const LOSING_SPEED := 0.75
-const PUSH_SPEED := 60.0
+const RANDOM_SPREAD := 15.0
+const PUSH_SPEED := 48.0
 const KNOCKBACK_SPEED := 60.0
 const BROKEN_TIME := 0.35
 const RECOVER_TIME := 0.5
@@ -161,7 +159,15 @@ func _step(link: BlockLink, protect: Vector2, delta: float) -> void:
 
 func _move_to_target(link: BlockLink, protect: Vector2, delta: float) -> void:
 	var b := link.blocker
+	var touched := _touching_defender(link)
+	if touched != null:  # encostou em um defensor: engaja, mesmo que não fosse o alvo do esquema
+		link.defender = touched
+		link.set_state(BlockLink.State.ENGAGING)
+		return
 	var d := link.defender
+	if _valid_target(d) and _is_engaged_by_other(d, link):
+		link.defender = null
+		d = null
 	if link.delay > 0.0:
 		link.delay -= delta
 		link.time_in_state = 0.0
@@ -209,21 +215,15 @@ func _hold(link: BlockLink, protect: Vector2, delta: float) -> void:
 		_free_t[d] = FREE_TIME
 		_start_recovering(link, RELEASE_RECOVER_TIME)
 		return
-	var toward := (protect - d.global_position).normalized()
-	var to_spot := _block_spot(link, protect) - b.global_position
-	b.input_dir = to_spot.normalized() if to_spot.length() > 2.0 else Vector2.ZERO
+	# Engajados: os dois ficam parados em contato até o defensor se desvencilhar (rompimento).
+	b.input_dir = Vector2.ZERO
 	_face(b, d)
 	b.block_pose = "block"
-	match link.state:
-		BlockLink.State.BLOCKING:
-			d.speed_scale = 0.0
-			d.shove = _drive(link, protect) * PUSH_SPEED
-		BlockLink.State.FIGHTING_BLOCK:
-			d.speed_scale = FIGHT_SPEED
-			d.shove = _drive(link, protect) * PUSH_SPEED * 0.3
-		BlockLink.State.LOSING_BLOCK:
-			d.speed_scale = LOSING_SPEED
-			b.shove = toward * PUSH_SPEED * 0.7
+	d.speed_scale = 0.0
+	# Nos esquemas com empurrão, quanto mais o bloqueador domina, mais o par desliza junto na direção do esquema.
+	var push := clampf((link.grip - GRIP_LOSING) / (START_GRIP - GRIP_LOSING), 0.0, 1.0)
+	d.shove = _drive(link, protect) * PUSH_SPEED * push
+	b.shove = d.shove
 
 
 ## O defensor rompe o bloqueio: fica livre e o bloqueador cambaleia.
@@ -316,6 +316,22 @@ func _pick_target(roles: Array, blocker: Player, taken: Array[Player]) -> Player
 		if d not in taken:
 			free.append(d)
 	return _nearest(free if not free.is_empty() else _defenders, blocker.global_position, INF)
+
+
+## Defensor que o bloqueador está encostando e que pode ser engajado.
+func _touching_defender(link: BlockLink) -> Player:
+	var free: Array[Player] = []
+	for d in _defenders:
+		if _valid_target(d) and not _free_t.has(d) and not _is_engaged_by_other(d, link):
+			free.append(d)
+	return _nearest(free, link.blocker.global_position, ENGAGE_DISTANCE)
+
+
+func _is_engaged_by_other(d: Player, except: BlockLink) -> bool:
+	for other in links:
+		if other != except and other.defender == d and other.is_engaged():
+			return true
+	return false
 
 
 ## Defensor livre mais próximo: não derrubado, não solto há pouco e sem outro bloqueador.
