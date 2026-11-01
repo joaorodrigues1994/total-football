@@ -1,5 +1,5 @@
 """Gera os spritesheets base dos jogadores (24x24) em PNG puro, sem dependencias.
-Linhas: idle_side, run_side, idle_down, run_down, idle_up, run_up, stance_side, start_side, ready_side, juke_side, dive_side, lying_side. 4 colunas (idle usa 2).
+Linhas: idle_side, run_side, idle_down, run_down, idle_up, run_up, stance_side, start_side, ready_side, juke_side, dive_side, lying_side, block_side, beaten_side. 4 colunas (idle usa 2).
 Os PNGs gerados sao a base para refinar no LibreSprite."""
 import struct
 import sys
@@ -110,6 +110,45 @@ def draw_pose(kind, frame, main):
         c.rect(16, 7 + b, 17, 8 + b, SKIN)
         c.rect(17, 7 + b, 18, 10 + b, MASK_D)
         c.rect(13, 7 + b, 13, 8 + b, dark)
+    elif kind == "block":  # confronto: abaixado, bracos esticados a frente empurrando
+        c.rect(7, 16, 9, 18, GRAY)
+        c.rect(6, 19, 8, 20, WHITE)
+        c.rect(5, 21, 8, 21, SHOE)
+        c.rect(12, 16, 14, 18, GRAY)
+        c.rect(12, 19, 14, 20, WHITE)
+        c.rect(12, 21, 15, 21, SHOE)
+        c.rect(8, 10 + b, 15, 15, m)
+        c.rect(8, 15, 15, 15, dark)
+        c.rect(10, 12 + b, 12, 13 + b, WHITE)
+        c.rect(15, 11 + b, 18, 12 + b, m)
+        c.rect(19, 11 + b, 21, 12 + b, SKIN)
+        c.rect(15, 13 + b, 17, 13 + b, m)
+        c.rect(18, 13 + b, 20, 14 + b, SKIN)
+        c.ellipse(12, 6 + b, 5, 4.5, m)
+        c.rect(9, 3 + b, 11, 3 + b, light)
+        c.rect(8, 4 + b, 8, 4 + b, light)
+        c.rect(14, 7 + b, 15, 8 + b, SKIN)
+        c.rect(15, 7 + b, 16, 10 + b, MASK_D)
+        c.rect(11, 7 + b, 11, 8 + b, dark)
+    elif kind == "beaten":  # bloqueio perdido: desequilibrado, inclinado para tras, bracos para cima
+        c.rect(10, 16, 12, 18, GRAY)
+        c.rect(10, 19, 12, 20, WHITE)
+        c.rect(9, 21, 12, 21, SHOE)
+        c.rect(14, 15 + b, 16, 17, GRAY)
+        c.rect(15, 18 + b, 17, 19 + b, WHITE)
+        c.rect(15, 20 + b, 18, 20 + b, SHOE)
+        c.rect(6, 10, 13, 15, m)
+        c.rect(6, 15, 13, 15, dark)
+        c.rect(8, 12, 10, 13, WHITE)
+        c.rect(12, 7 + b, 13, 10, m)
+        c.rect(13, 4 + b, 14, 6 + b, SKIN)
+        c.rect(5, 7 + b, 6, 10, m)
+        c.rect(4, 4 + b, 5, 6 + b, SKIN)
+        c.ellipse(9, 7, 4.5, 4, m)
+        c.rect(6, 4, 8, 4, light)
+        c.rect(12, 8, 13, 9, SKIN)
+        c.rect(13, 8, 14, 11, MASK_D)
+        c.rect(8, 8, 8, 9, dark)
     else:  # ready: joelhos flexionados, maos a frente para receber a bola
         c.rect(9, 16, 11, 18, GRAY)
         c.rect(9, 19, 11, 20, WHITE)
@@ -235,7 +274,8 @@ def main():
     rows = [("side", False, 2), ("side", True, 4), ("down", False, 2),
             ("down", True, 4), ("up", False, 2), ("up", True, 4),
             ("stance", None, 2), ("start", None, 2), ("ready", None, 2),
-            ("juke", None, 3), ("dive", None, 2), ("lying", None, 1)]
+            ("juke", None, 3), ("dive", None, 2), ("lying", None, 1),
+            ("block", None, 2), ("beaten", None, 2)]
     for team, color in TEAMS.items():
         w, h = S * 4, S * len(rows)
         sheet = [[None] * w for _ in range(h)]

@@ -14,12 +14,8 @@ const STANCE_ROLES := ["LT", "LG", "C", "RG", "RT", "TE", "LDE", "LDT", "RDT", "
 const START_ROLES := ["WR1", "WR2", "WR3"]
 const READY_ROLES := ["RB"]
 const RUSH_ROLES := ["LDE", "LDT", "RDT", "RDE"]
-const LINE_ROLES := ["LT", "LG", "C", "RG", "RT"]
-## Quem bloqueia: na corrida a linha, o TE e os WR; no passe só a linha.
-const RUN_BLOCK_ROLES := ["LT", "LG", "C", "RG", "RT", "TE", "WR1", "WR2", "WR3"]
-## Defensor em contato com o bloqueador (px) fica mais lento.
-const BLOCK_ENGAGE_DISTANCE := 22.0
-const BLOCK_BASE_SLOW := 0.4
+## Retornador: não bloqueia, só recebe a bola nos chutes.
+const RECEIVER_ROLES := ["R"]
 const SNAP_TIME := 0.3
 const HANDOFF_DISTANCE := 18.0
 ## Depois da entrega o QB sai lateralmente da frente do RB por este tempo.
@@ -58,6 +54,9 @@ var human_side := Side.OFFENSE
 var attack_dir := 1.0
 var play_result := ""
 ## Time com a bola (ou que chuta) e time que defende (ou recebe o chute).
+## Esquemas de bloqueio das jogadas de ataque (trocados pelo menu de jogadas na etapa 11).
+var run_scheme := "run_middle"
+var pass_scheme := "pass_short"
 var offense: Array[Player] = []
 var defense: Array[Player] = []
 var scrimmage_spot := Vector2.ZERO
@@ -71,7 +70,7 @@ var _rb: Player
 var _kicker: Player
 var _carrier: Player
 var _receivers: Array[Player] = []
-var _blocks: Dictionary = {}  # bloqueador -> defensor atribuído
+var _block_system: BlockSystem
 var _runners: Array[RouteRunner] = []
 var _target_index := 0
 var _defense_index := 0
@@ -96,6 +95,9 @@ var _dropback_x := 0.0
 func _ready() -> void:
 	InputSetup.ensure()
 	add_child(_hud)
+	_block_system = BlockSystem.new()
+	_block_system.protect_fn = _block_protect_point
+	add_child(_block_system)  # antes dos jogadores: atualiza o empurrão antes de eles se moverem
 	_setup()
 
 
@@ -169,9 +171,6 @@ func _physics_process(delta: float) -> void:
 		_check_touchdown()
 	if state in [State.HANDOFF, State.DROPBACK, State.PASSING, State.RUNNING]:
 		_check_tackles()
-	if play_kind == PlayKind.SCRIMMAGE and state in [State.SNAP, State.HANDOFF, State.DROPBACK,
-			State.PASSING, State.FLIGHT, State.RUNNING]:
-		_update_blocks()
 	_update_camera_focus()
 	_message_time = maxf(_message_time - delta, 0.0)
 	var banner := _message if _message_time > 0.0 else (_prompt if state == State.PRE_SNAP else "")
@@ -267,7 +266,7 @@ func _start_play() -> void:
 			else:
 				rules.snap()
 			_rb.pose = ""
-			_assign_blocks(is_pass)
+			_block_system.begin(pass_scheme if is_pass else run_scheme, offense, defense, attack_dir)
 			state = State.SNAP
 			if is_pass:
 				for i in _receivers.size():
@@ -308,47 +307,27 @@ func defender_target(player: Player) -> Variant:
 	return null
 
 
-## Cada bloqueador pega o defensor mais próximo que ainda não tem bloqueador.
-func _assign_blocks(is_pass: bool) -> void:
-	_blocks.clear()
-	var taken: Array[Player] = []
+## Ponto que o bloqueio protege: portador, ponto de queda do chute ou o QB.
+func _block_protect_point() -> Vector2:
+	if _carrier:
+		return _carrier.global_position
+	if state == State.KICK_FLIGHT:
+		return _kick_landing
+	return _qb.global_position
+
+
+## Retorno de kickoff/punt: o time que recebe (menos o retornador) bloqueia a cobertura.
+func _begin_return_blocks() -> void:
+	var blockers: Array[Player] = []
+	var cover: Array[Player] = []
+	for p in defense:
+		if p.role not in RECEIVER_ROLES:
+			blockers.append(p)
 	for p in offense:
-		if p.role not in (LINE_ROLES if is_pass else RUN_BLOCK_ROLES):
-			continue
-		var pick := _nearest_free_defender(p, taken)
-		_blocks[p] = pick
-		taken.append(pick)
-
-
-func _nearest_free_defender(blocker: Player, taken: Array[Player]) -> Player:
-	var free: Array[Player] = []
-	for d in defense:
-		if d not in taken and d.action != Player.Action.DOWN:
-			free.append(d)
-	return _nearest_of(free if not free.is_empty() else defense, blocker.global_position, INF)
-
-
-## Tarefa de bloqueio de um jogador: defensor e ponto a proteger (portador, ou QB). null = não bloqueia.
-func block_job(player: Player) -> Variant:
-	if play_kind != PlayKind.SCRIMMAGE or not _blocks.has(player) or state == State.PRE_SNAP or state == State.DEAD:
-		return null
-	var defender: Player = _blocks[player]
-	if defender.action == Player.Action.DOWN:  # defensor caído: procura outro
-		defender = _nearest_free_defender(player, [])
-		_blocks[player] = defender
-	return {"defender": defender, "protect": (_carrier if _carrier else _qb).global_position}
-
-
-## Defensor em contato com o bloqueador anda mais devagar (mais ainda se o bloqueador for mais forte).
-func _update_blocks() -> void:
-	for d in defense:
-		d.speed_scale = 1.0
-	for blocker in _blocks:
-		var defender: Player = _blocks[blocker]
-		if blocker.global_position.distance_to(defender.global_position) > BLOCK_ENGAGE_DISTANCE:
-			continue
-		var diff: int = blocker.attributes.strength - defender.attributes.strength
-		defender.speed_scale = minf(defender.speed_scale, clampf(BLOCK_BASE_SLOW - diff * 0.004, 0.1, 0.8))
+		if p.role != "K":
+			cover.append(p)
+	_block_system.begin("kick_return" if play_kind == PlayKind.KICKOFF else "punt_return",
+			blockers, cover, -attack_dir)
 
 
 func _check_touchdown() -> void:
@@ -362,7 +341,7 @@ func _check_tackles() -> void:
 	if state == State.DEAD or _carrier == null or _carrier.action == Player.Action.DOWN:
 		return
 	for d in defense:
-		if d.action == Player.Action.DOWN or d.tackle_cooldown > 0.0:
+		if d.action == Player.Action.DOWN or d.tackle_cooldown > 0.0 or _block_system.is_locked(d):
 			continue
 		if d.global_position.distance_to(_carrier.global_position) > TACKLE_RADIUS:
 			continue
@@ -415,8 +394,11 @@ func _stop_everything(result: String, events: Dictionary, banner: String) -> voi
 	for p in offense + defense:
 		p.input_dir = Vector2.ZERO
 	_ball.height = 0.0
-	for d in defense:
-		d.speed_scale = 1.0
+	_block_system.release_all()
+	for p in offense + defense:
+		p.speed_scale = 1.0
+		p.shove = Vector2.ZERO
+		p.block_pose = ""
 	_show_message("FINAL" if events["game_over"] else banner)
 
 
@@ -531,6 +513,7 @@ func _launch_kick() -> void:
 		to = Vector2(clampf(raw_x, 0.0, field_end),
 				center_y + FieldConstants.yards_to_px(rules.rng.randf_range(-5.0, 5.0)))
 		_kick_landing = to
+		_begin_return_blocks()
 	_flight = PassFlight.new(from, to, from.distance_to(to) / KICK_SPEED, minf(110.0, from.distance_to(to) * 0.25))
 	_controller.enabled = false  # o retornador corre sozinho até o ponto de queda
 	_anchor.global_position = from
@@ -622,6 +605,7 @@ func _on_carrier_downed() -> void:
 func _setup(forced_kind: PlayKind = PlayKind.SCRIMMAGE) -> void:
 	for p in offense + defense:
 		p.queue_free()
+	_block_system.clear()
 	for n in [_controller, _ball, _anchor]:
 		if n:
 			n.queue_free()
@@ -649,13 +633,6 @@ func _setup(forced_kind: PlayKind = PlayKind.SCRIMMAGE) -> void:
 	_kicker = _find(offense, "K")
 	_receivers.clear()
 	_runners.clear()
-	_blocks.clear()
-	if play_kind == PlayKind.SCRIMMAGE:
-		for p in offense:
-			if p.role in RUN_BLOCK_ROLES:
-				var blocker_ai := BlockerAI.new()
-				blocker_ai.match = self
-				p.add_child(blocker_ai)
 	if play_kind == PlayKind.SCRIMMAGE:
 		for role in Routes.TARGET_ORDER:
 			var receiver := _find(offense, role)
@@ -754,6 +731,7 @@ func _spawn(slots: Array, team: Player.Team, facing_dir: float) -> Array[Player]
 		var player: Player = PLAYER_SCENE.instantiate()
 		player.team = team
 		player.role = slot["role"]
+		player.attributes = PlayerAttributes.for_role(player.role)
 		player.facing = Vector2(facing_dir, 0.0)
 		player.pose = _pose_for(player.role)
 		player.position = scrimmage_spot + slot["pos"] * attack_dir * FieldConstants.PX_PER_YARD

@@ -39,6 +39,11 @@ var is_pass_target := false:
 ## Multiplicador de velocidade (menor que 1 enquanto o jogador está sendo bloqueado).
 var speed_scale := 1.0
 
+## Empurrão externo (px/s) somado ao movimento; usado nos confrontos de bloqueio.
+var shove := Vector2.ZERO
+## Pose de confronto ("block" ou "beaten") definida pelo sistema de bloqueio.
+var block_pose := ""
+
 ## Tempo em que este defensor não pode tentar tackle (depois de errar um tackle).
 var tackle_cooldown := 0.0
 
@@ -136,7 +141,13 @@ func _physics_process(delta: float) -> void:
 	velocity = velocity.move_toward(dir * max_speed, accel * delta)
 	if dir != Vector2.ZERO:
 		facing = dir.normalized()
-	move_and_slide()
+	if shove != Vector2.ZERO:
+		var own := velocity
+		velocity += shove
+		move_and_slide()
+		velocity = own
+	else:
+		move_and_slide()
 	position = position.clamp(Vector2.ZERO, Vector2(
 		FieldConstants.yards_to_px(FieldConstants.TOTAL_YARDS),
 		FieldConstants.yards_to_px(FieldConstants.WIDTH_YARDS)))
@@ -149,6 +160,10 @@ func _update_animation() -> void:
 		var anim: String = ACTION_ANIMS[action]
 		if _sprite.animation != anim:
 			_sprite.play(anim)
+		return
+	if block_pose != "":
+		_sprite.flip_h = facing.x < 0.0
+		_sprite.play(block_pose + "_side")
 		return
 	var view := "side"
 	if absf(facing.y) > absf(facing.x):
