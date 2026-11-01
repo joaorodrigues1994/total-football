@@ -49,8 +49,17 @@ func _init() -> void:
 	_rng.randomize()
 
 
-## Monta os confrontos de um esquema. dir = direção de ataque de quem bloqueia.
-func begin(scheme_id: String, blockers: Array[Player], defenders: Array[Player], dir: float) -> void:
+## Posição equivalente do outro lado do campo, usada para espelhar um esquema.
+const MIRROR := {
+	"LT": "RT", "RT": "LT", "LG": "RG", "RG": "LG", "LDE": "RDE", "RDE": "LDE", "LDT": "RDT", "RDT": "LDT",
+	"LOLB": "ROLB", "ROLB": "LOLB", "LCB": "RCB", "RCB": "LCB", "FS": "SS", "SS": "FS",
+	"WR1": "WR2", "WR2": "WR1", "TE": "WR3", "WR3": "TE", "C": "C", "MLB": "MLB",
+}
+
+
+## Monta os confrontos de um esquema. dir = direção de ataque de quem bloqueia; mirror espelha o esquema.
+func begin(scheme_id: String, blockers: Array[Player], defenders: Array[Player], dir: float,
+		mirror := false) -> void:
 	clear()
 	_defenders = defenders
 	var scheme: Dictionary = BlockSchemes.SCHEMES[scheme_id]
@@ -63,12 +72,16 @@ func begin(scheme_id: String, blockers: Array[Player], defenders: Array[Player],
 	else:
 		var taken: Array[Player] = []
 		for blocker in blockers:
-			var spec: Variant = scheme["blockers"].get(blocker.role)
+			var spec: Variant = scheme["blockers"].get(MIRROR.get(blocker.role, blocker.role) if mirror else blocker.role)
 			if spec == null:
 				continue
-			var target := _pick_target(spec["target"], blocker, taken)
-			taken.append(target)
+			var roles: Array = spec["target"]
 			var drive: Vector2 = spec["drive"]
+			if mirror:
+				roles = roles.map(func(r: String) -> String: return MIRROR.get(r, r))
+				drive.y = -drive.y
+			var target := _pick_target(roles, blocker, taken)
+			taken.append(target)
 			_add(blocker, target, spec["start"], spec["duration"], Vector2(drive.x * dir, drive.y))
 	active = true
 

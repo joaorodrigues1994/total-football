@@ -25,6 +25,18 @@ const SCHEMES := {
 		"WR2": {"target": ["RCB"], "start": 0.0, "duration": 6.0, "drive": Vector2.ZERO},
 		"WR3": {"target": ["LOLB"], "start": 0.0, "duration": 6.0, "drive": Vector2(0, -1)},
 	}},
+	# Corrida pelo buraco à direita do centro: o par C x MLB desliza para a esquerda.
+	"run_right_gap": {"blockers": {
+		"LT": {"target": ["LDE"], "start": 0.0, "duration": 6.0, "drive": Vector2(0, -1)},
+		"LG": {"target": ["LDT"], "start": 0.0, "duration": 6.0, "drive": Vector2(0, -1)},
+		"C": {"target": ["MLB"], "start": 0.0, "duration": 6.0, "drive": Vector2(0, -1)},
+		"RG": {"target": ["RDT"], "start": 0.0, "duration": 6.0, "drive": Vector2(0, 1)},
+		"RT": {"target": ["RDE"], "start": 0.0, "duration": 6.0, "drive": Vector2(0, 1)},
+		"TE": {"target": ["ROLB"], "start": 0.0, "duration": 6.0, "drive": Vector2(0, 1)},
+		"WR1": {"target": ["LCB"], "start": 0.0, "duration": 6.0, "drive": Vector2.ZERO},
+		"WR2": {"target": ["RCB"], "start": 0.0, "duration": 6.0, "drive": Vector2.ZERO},
+		"WR3": {"target": ["LOLB"], "start": 0.0, "duration": 6.0, "drive": Vector2(0, -1)},
+	}},
 	# Corrida lateral (pela direita do ataque): lado forte fecha por dentro, guard esquerdo corre à frente.
 	"run_outside": {"blockers": {
 		"LT": {"target": ["LDE"], "start": 0.0, "duration": 6.0, "drive": Vector2(0, -1)},

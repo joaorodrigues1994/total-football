@@ -2,7 +2,7 @@ class_name Match
 extends Node2D
 ## Monta a partida e conduz a jogada: formação, snap, corrida, passe, tackles, chutes e regras.
 
-enum State { PRE_SNAP, SNAP, HANDOFF, DROPBACK, PASSING, FLIGHT, KICK_FLIGHT, RUNNING, DEAD }
+enum State { PLAY_SELECTION, PRE_SNAP, SNAP, HANDOFF, DROPBACK, PASSING, FLIGHT, KICK_FLIGHT, RUNNING, DEAD }
 enum PlayType { RUN, PASS }
 enum PlayKind { SCRIMMAGE, PUNT, FIELD_GOAL, KICKOFF, EXTRA_POINT }
 enum Side { OFFENSE, DEFENSE }
@@ -13,7 +13,6 @@ const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const STANCE_ROLES := ["LT", "LG", "C", "RG", "RT", "TE", "LDE", "LDT", "RDT", "RDE"]
 const START_ROLES := ["WR1", "WR2", "WR3"]
 const READY_ROLES := ["RB"]
-const RUSH_ROLES := ["LDE", "LDT", "RDT", "RDE"]
 ## Retornador: não bloqueia, só recebe a bola nos chutes.
 const RECEIVER_ROLES := ["R"]
 const SNAP_TIME := 0.3
@@ -39,6 +38,8 @@ const NEXT_PLAY_DELAY := 1.5
 const MESSAGE_TIME := 2.5
 ## O ataque fica deslocado para o seu lado da tela, mostrando mais campo à frente.
 const CAMERA_LOOK_AHEAD := 170.0
+## A CPU no ataque lança depois de ficar este tempo com a bola no bolso.
+const CPU_THROW_DELAY := 1.8
 ## Margem mínima (px) entre o QB e a borda da tela durante o passe.
 const CAMERA_QB_MARGIN := 50.0
 
@@ -54,9 +55,9 @@ var human_side := Side.OFFENSE
 var attack_dir := 1.0
 var play_result := ""
 ## Time com a bola (ou que chuta) e time que defende (ou recebe o chute).
-## Esquemas de bloqueio das jogadas de ataque (trocados pelo menu de jogadas na etapa 11).
-var run_scheme := "run_middle"
-var pass_scheme := "pass_short"
+## Jogadas escolhidas no menu (itens do Playbook); vazias fora de jogadas de scrimmage.
+var offense_play := {}
+var defense_play := {}
 var offense: Array[Player] = []
 var defense: Array[Player] = []
 var scrimmage_spot := Vector2.ZERO
@@ -71,6 +72,14 @@ var _kicker: Player
 var _carrier: Player
 var _receivers: Array[Player] = []
 var _block_system: BlockSystem
+var _play_clock := PlayClock.new()
+var _menu := PlayMenu.new()
+## Escolhas do menu: jogada do Playbook, ou {"kick": PlayKind} (punt/field goal). Vazio = ainda não escolheu.
+var _off_choice := {}
+var _def_choice := {}
+var _human_key := ""
+var _human_kick := ""
+var _cpu_throw_time := 0.0
 var _runners: Array[RouteRunner] = []
 var _target_index := 0
 var _defense_index := 0
@@ -95,6 +104,7 @@ var _dropback_x := 0.0
 func _ready() -> void:
 	InputSetup.ensure()
 	add_child(_hud)
+	add_child(_menu)
 	_block_system = BlockSystem.new()
 	_block_system.protect_fn = _block_protect_point
 	add_child(_block_system)  # antes dos jogadores: atualiza o empurrão antes de eles se moverem
@@ -105,7 +115,7 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("debug_reset"):  # TEMPORÁRIO
 		_setup()
 		return
-	if Input.is_action_just_pressed("debug_swap_side") and state == State.PRE_SNAP:  # TEMPORÁRIO
+	if Input.is_action_just_pressed("debug_swap_side") and state in [State.PLAY_SELECTION, State.PRE_SNAP]:  # TEMPORÁRIO
 		rules.flip_possession_same_spot()
 		_setup()
 		return
@@ -114,6 +124,9 @@ func _physics_process(delta: float) -> void:
 		_setup()
 		return
 	match state:
+		State.PLAY_SELECTION:
+			if _update_selection(delta):
+				return
 		State.PRE_SNAP:
 			if _update_pre_snap(delta):
 				return
@@ -138,13 +151,16 @@ func _physics_process(delta: float) -> void:
 				if (_qb.global_position.x - _dropback_x) * attack_dir <= 0.0:
 					_qb.input_dir = Vector2.ZERO
 					_qb.facing = Vector2(attack_dir, 0.0)
-					_controller.controlled = _qb
-					_controller.enabled = true
+					if human_side == Side.OFFENSE:
+						_controller.controlled = _qb
+						_controller.enabled = true
+					_cpu_throw_time = 0.0
 					state = State.PASSING
 		State.PASSING:
 			_ball.world_pos = _hands(_qb)
 			_frame_pass()
 			_pass_inputs()
+			_cpu_pass(delta)
 		State.FLIGHT:
 			_update_flight(delta)
 		State.KICK_FLIGHT:
@@ -175,6 +191,7 @@ func _physics_process(delta: float) -> void:
 	_message_time = maxf(_message_time - delta, 0.0)
 	var banner := _message if _message_time > 0.0 else (_prompt if state == State.PRE_SNAP else "")
 	_hud.show_rules(rules, banner)
+	_refresh_menu()
 
 
 ## O retornador do humano corre sozinho até o ponto de queda enquanto a bola está no ar.
@@ -215,35 +232,121 @@ func _update_pre_snap(delta: float) -> bool:
 	return false
 
 
-## Humano no ataque apertou A: direção escolhe a jogada (Esquerda = passe).
+## Humano no ataque apertou A (extra point: Baixo + A escolhe a conversão de 2 pontos); senão dá o snap.
 func _offense_chooses() -> bool:
-	var down_held := Input.is_action_pressed("ui_down")
-	if play_kind == PlayKind.EXTRA_POINT and rules.conversion_open and down_held:
-		rules.choose_conversion(true)  # Baixo + A: conversão de 2 pontos
+	if play_kind == PlayKind.EXTRA_POINT and rules.conversion_open and Input.is_action_pressed("ui_down"):
+		rules.choose_conversion(true)
 		_setup()
 		return true
-	if play_kind == PlayKind.SCRIMMAGE and rules.next_play == GameRules.Next.SCRIMMAGE and rules.down == 4:
-		if down_held:
-			_begin_kick(PlayKind.PUNT)
-			return true
-		if Input.is_action_pressed("ui_right"):
-			_begin_kick(PlayKind.FIELD_GOAL)
-			return true
 	_start_play()
 	return false
 
 
-## CPU no ataque: no 4º down chuta field goal ou punt; senão corre.
+## CPU no ataque dá o snap (a jogada já foi escolhida no menu).
 func _cpu_offense_chooses() -> bool:
-	if play_kind == PlayKind.SCRIMMAGE and rules.next_play == GameRules.Next.SCRIMMAGE and rules.down == 4:
-		if rules.kick_distance() <= 47.0:
-			_begin_kick(PlayKind.FIELD_GOAL)
-			return true
-		if rules.ball_on < 55.0:
-			_begin_kick(PlayKind.PUNT)
-			return true
 	_start_play()
 	return false
+
+
+## Menu de jogadas: ataque e defesa escolhem em segredo; a jogada só começa quando os dois estão prontos.
+## Retorna true se a formação foi refeita (a jogada deste frame não deve continuar).
+func _update_selection(delta: float) -> bool:
+	if rules.game_over:
+		return false
+	if Input.is_action_just_pressed("btn_timeout") and rules.use_timeout(HUMAN_TEAM):
+		_play_clock.start()
+		_show_message("TIMEOUT  %s" % ("A" if HUMAN_TEAM == 0 else "B"))
+	var human_choice := _off_choice if human_side == Side.OFFENSE else _def_choice
+	if human_choice.is_empty():
+		_poll_human_choice()
+	if _play_clock.tick(delta):
+		return _play_clock_expired()
+	if not _off_choice.is_empty() and not _def_choice.is_empty():
+		_confirm_selection()
+	return false
+
+
+## Direcional + A (terrestre / contra corrida) ou + S (aérea / contra passe); no 4º down também P e G.
+func _poll_human_choice() -> void:
+	var direction := ""
+	for d in Playbook.DIRECTIONS:
+		if Input.is_action_pressed("ui_" + d):
+			direction = d
+	var air := Input.is_action_just_pressed("btn_s")
+	var ground := Input.is_action_just_pressed("btn_a")
+	if human_side == Side.OFFENSE and rules.down == 4 and rules.next_play == GameRules.Next.SCRIMMAGE:
+		if Input.is_action_just_pressed("btn_punt"):
+			_off_choice = {"kick": PlayKind.PUNT}
+			_human_kick = "PUNT"
+			return
+		if Input.is_action_just_pressed("btn_fg"):
+			_off_choice = {"kick": PlayKind.FIELD_GOAL}
+			_human_kick = "FIELD GOAL"
+			return
+	if direction == "" or not (air or ground):
+		return
+	_human_key = "%s_%s" % [direction, "s" if air else "a"]
+	if human_side == Side.OFFENSE:
+		_off_choice = Playbook.offense_play(direction, air)
+	else:
+		_def_choice = Playbook.defense_play(direction, air)
+
+
+## O play clock zerou. Ataque sem jogada: Delay of Game (refaz a formação com a bola recuada e 25 s novos).
+## Defesa sem jogada: sorteio válido, sem penalidade.
+func _play_clock_expired() -> bool:
+	var human_pending := _off_choice.is_empty() if human_side == Side.OFFENSE else _def_choice.is_empty()
+	if human_side == Side.OFFENSE and human_pending:
+		rules.delay_of_game()
+		_setup()
+		_show_message("DELAY OF GAME  -5")
+		return true
+	if human_pending:
+		_def_choice = Playbook.random_defense(rules.rng)
+		_human_key = ""
+		_show_message("DEFENSE AUTO-SELECTED")
+	return false
+
+
+func _confirm_selection() -> void:
+	_play_clock.stop()
+	if _off_choice.has("kick"):
+		_begin_kick(_off_choice["kick"])
+		return
+	offense_play = _off_choice
+	defense_play = _def_choice
+	state = State.PRE_SNAP
+	_presnap_time = DEFENSE_SNAP_DELAY
+	_prompt = _prompt_text()
+
+
+## Abre o menu da próxima jogada: a CPU escolhe na hora, o humano tem o play clock.
+func _enter_selection() -> void:
+	state = State.PLAY_SELECTION
+	_off_choice = {}
+	_def_choice = {}
+	_human_key = ""
+	_human_kick = ""
+	if human_side == Side.OFFENSE:
+		_def_choice = CpuPlayCaller.defense(rules)
+	else:
+		_off_choice = CpuPlayCaller.offense(rules)
+	_play_clock.start()
+
+
+func _refresh_menu() -> void:
+	var offense_side := human_side == Side.OFFENSE
+	_menu.refresh({
+		"visible": state == State.PLAY_SELECTION and not rules.game_over,
+		"offense": offense_side,
+		"plays": Playbook.OFFENSE if offense_side else Playbook.DEFENSE,
+		"selected": _human_key,
+		"kick_label": _human_kick,
+		"seconds": _play_clock.seconds_left(),
+		"warning": _play_clock.is_warning(),
+		"timeouts": rules.timeouts,
+		"fourth_down": offense_side and rules.down == 4 and rules.next_play == GameRules.Next.SCRIMMAGE,
+	})
 
 
 func _begin_kick(kind: PlayKind) -> void:
@@ -252,8 +355,12 @@ func _begin_kick(kind: PlayKind) -> void:
 
 
 func _start_play() -> void:
-	var is_pass := human_side == Side.OFFENSE and Input.is_action_pressed("ui_left") \
-			and play_kind == PlayKind.SCRIMMAGE
+	if play_kind == PlayKind.SCRIMMAGE:
+		if offense_play.is_empty():
+			offense_play = Playbook.offense_play("up", false)
+		if defense_play.is_empty():
+			defense_play = Playbook.defense_play("up", false)
+	var is_pass: bool = play_kind == PlayKind.SCRIMMAGE and offense_play["type"] == "pass"
 	play_type = PlayType.PASS if is_pass else PlayType.RUN
 	_snap_progress = 0.0
 	_snap_from = _ball.world_pos
@@ -266,13 +373,14 @@ func _start_play() -> void:
 			else:
 				rules.snap()
 			_rb.pose = ""
-			_block_system.begin(pass_scheme if is_pass else run_scheme, offense, defense, attack_dir)
+			_block_system.begin(offense_play["block"], offense, defense, attack_dir, offense_play.get("mirror", false))
 			state = State.SNAP
+			_show_message("%s  vs  %s" % [offense_play["name"], defense_play["name"]])  # jogadas reveladas
 			if is_pass:
 				for i in _receivers.size():
 					var p := _receivers[i]
 					p.pose = ""
-					_runners[i].start(Routes.PASS_TEST[p.role], p.global_position, attack_dir)
+					_runners[i].start(offense_play["routes"][p.role], p.global_position, attack_dir)
 				_set_target(0)
 		PlayKind.PUNT, PlayKind.FIELD_GOAL:
 			rules.snap()
@@ -297,19 +405,32 @@ func defender_target(player: Player) -> Variant:
 			if role == "R" or (player in offense and role != "K"):
 				return _kick_landing  # retornador vai ao ponto de queda; cobertura corre atrás da bola
 		return null
+	var strategy := defense_play if not defense_play.is_empty() else Playbook.defense_play("up", false)
 	match state:
 		State.SNAP, State.HANDOFF, State.DROPBACK, State.PASSING:
-			if player in defense and (play_type == PlayType.RUN or role in RUSH_ROLES):
-				return (_carrier if _carrier else _qb).global_position
-			if player in defense:  # passe: quem não rusha acompanha o recebedor mais próximo
-				return _nearest_of(_receivers, player.global_position, INF).global_position
+			if player not in defense:
+				return null
+			var target := (_carrier if _carrier else _qb).global_position
+			if strategy["type"] == "pass":
+				if role in strategy["rush"]:
+					return target
+				return _nearest_of(_receivers, player.global_position, INF).global_position  # cobertura
+			return null if _is_holding(player, strategy) else target
 		State.FLIGHT:
 			if player in defense:
 				return _flight.to
 		State.RUNNING:
 			if player in defense:
-				return _carrier.global_position
+				return null if _is_holding(player, strategy) else _carrier.global_position
 	return null
+
+
+## Contra corrida: quem está em "hold" espera o portador cruzar a linha de scrimmage.
+func _is_holding(player: Player, strategy: Dictionary) -> bool:
+	if strategy["type"] != "run" or play_type != PlayType.RUN or player.role not in strategy["hold"]:
+		return false
+	var carrier_pos := (_carrier if _carrier else _qb).global_position
+	return (carrier_pos.x - scrimmage_spot.x) * attack_dir <= 0.0
 
 
 ## Ponto que o bloqueio protege: portador, ponto de queda do chute ou o QB.
@@ -454,6 +575,26 @@ func _pass_inputs() -> void:
 		_set_target((_target_index + 1) % _receivers.size())
 	if Input.is_action_just_pressed("btn_d"):
 		_throw()
+
+
+## CPU no ataque: depois de um tempo no bolso, lança para o recebedor mais livre.
+func _cpu_pass(delta: float) -> void:
+	if human_side == Side.OFFENSE:
+		return
+	_cpu_throw_time += delta
+	if _cpu_throw_time < CPU_THROW_DELAY:
+		return
+	var best := 0
+	var best_gap := -1.0
+	for i in _receivers.size():
+		var gap := INF
+		for d in defense:
+			gap = minf(gap, d.global_position.distance_to(_receivers[i].global_position))
+		if gap > best_gap:
+			best_gap = gap
+			best = i
+	_set_target(best)
+	_throw()
 
 
 func _set_target(index: int) -> void:
@@ -656,6 +797,8 @@ func _setup(forced_kind: PlayKind = PlayKind.SCRIMMAGE) -> void:
 	_flight = null
 	_in_return = false
 	play_result = ""
+	offense_play = {}
+	defense_play = {}
 	_defense_index = 0
 	_presnap_time = DEFENSE_SNAP_DELAY
 	_kick_countdown = 0.0
@@ -685,6 +828,14 @@ func _setup(forced_kind: PlayKind = PlayKind.SCRIMMAGE) -> void:
 			camera.target = _anchor if play_kind == PlayKind.SCRIMMAGE else _controller.controlled
 		camera.global_position = camera.target.global_position + camera.look_ahead
 	_prompt = _prompt_text()
+	_play_clock.stop()
+	_off_choice = {}
+	_def_choice = {}
+	_human_key = ""
+	_human_kick = ""
+	if play_kind == PlayKind.SCRIMMAGE and not rules.game_over \
+			and rules.next_play in [GameRules.Next.SCRIMMAGE, GameRules.Next.TWO_POINT]:
+		_enter_selection()
 
 
 ## Formações [time que chuta/ataca, time que recebe/defende] para o tipo de jogada.
@@ -709,8 +860,7 @@ func _prompt_text() -> String:
 		PlayKind.EXTRA_POINT:
 			return "A: EXTRA POINT    BAIXO+A: 2 PONTOS" if rules.conversion_open else "A: CHUTAR"
 		PlayKind.SCRIMMAGE:
-			if rules.next_play == GameRules.Next.SCRIMMAGE and rules.down == 4:
-				return "4o DOWN  BAIXO+A: PUNT  DIREITA+A: FG"
+			return "A: SNAP"
 	return ""
 
 

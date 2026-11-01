@@ -10,6 +10,10 @@ enum Next { SCRIMMAGE, KICKOFF, EXTRA_POINT, TWO_POINT }
 
 const QUARTER_SECONDS := 120.0
 const QUARTERS := 4
+## Delay of Game: 5 jardas contra o ataque e o down se repete.
+const DELAY_OF_GAME_YARDS := 5.0
+## Timeouts por time em cada metade (renovados no 3º quarto).
+const TIMEOUTS_PER_HALF := 3
 const TOUCHDOWN_POINTS := 6
 const FIELD_GOAL_POINTS := 3
 const KICKOFF_YARD := 35.0
@@ -32,6 +36,8 @@ var clock := QUARTER_SECONDS
 ## O relógio só corre com a jogada em andamento ou depois de um tackle dentro do campo.
 var clock_running := false
 var play_active := false
+## Timeouts restantes de cada time (0 = Time A, 1 = Time B).
+var timeouts: Array[int] = [TIMEOUTS_PER_HALF, TIMEOUTS_PER_HALF]
 var game_over := false
 
 var possession := 0
@@ -102,6 +108,22 @@ func tick(delta: float) -> bool:
 	if play_active:
 		return false  # a jogada em andamento termina; o quarto acaba depois dela
 	_end_quarter()
+	return true
+
+
+## Delay of Game (play clock zerou sem o ataque escolher): perde 5 jardas, o down se repete e a linha
+## de first down não muda. Perto da própria goal line, perde só metade da distância até ela.
+func delay_of_game() -> void:
+	var yards := DELAY_OF_GAME_YARDS if ball_on > DELAY_OF_GAME_YARDS * 2.0 else ball_on / 2.0
+	ball_on = maxf(ball_on - yards, 1.0)
+
+
+## Pede timeout para o time: consome um dos disponíveis e para o relógio do jogo. Retorna false se não puder.
+func use_timeout(team: int) -> bool:
+	if game_over or timeouts[team] <= 0:
+		return false
+	timeouts[team] -= 1
+	clock_running = false
 	return true
 
 
@@ -296,6 +318,8 @@ func _end_quarter() -> void:
 		return
 	quarter += 1
 	clock = QUARTER_SECONDS
+	if quarter == 3:
+		timeouts = [TIMEOUTS_PER_HALF, TIMEOUTS_PER_HALF]
 	if quarter == 3:  # segundo tempo: kickoff do time que abriu o jogo recebendo
 		if next_play == Next.EXTRA_POINT or next_play == Next.TWO_POINT:
 			_halftime_pending = true  # primeiro a conversão do touchdown
