@@ -5,7 +5,7 @@ extends Node
 @export var controlled: Player:
 	set = set_controlled
 
-## Desligado, o jogador controlado fica parado (ex.: antes do snap).
+## Desligado, o controlador não mexe no jogador (ex.: antes do snap e durante o handoff).
 var enabled := true
 
 
@@ -19,5 +19,5 @@ func set_controlled(player: Player) -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if controlled:
-		controlled.input_dir = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down") if enabled else Vector2.ZERO
+	if controlled and enabled:
+		controlled.input_dir = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")

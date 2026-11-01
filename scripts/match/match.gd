@@ -58,7 +58,10 @@ func _physics_process(delta: float) -> void:
 			_ball.world_pos = _hands(_carrier)
 			var to_qb := _qb.global_position - _rb.global_position
 			_rb.input_dir = to_qb.normalized()
+			_qb.input_dir = -to_qb.normalized()
 			if to_qb.length() <= HANDOFF_DISTANCE:
+				_qb.input_dir = Vector2.ZERO
+				_qb.facing = Vector2.RIGHT
 				_carrier = _rb
 				_controller.controlled = _rb
 				_controller.enabled = true
@@ -113,7 +116,11 @@ func _spawn(slots: Array, team: Player.Team, facing: Vector2) -> Array[Player]:
 
 
 func _hands(player: Player) -> Vector2:
-	return player.global_position + player.facing * 6.0 + Vector2(0, 3)
+	# Bola junto ao corpo, na altura do peito; de frente/costas fica no lado do braço.
+	var side := signf(player.facing.x) * 3.0
+	if absf(player.facing.y) > absf(player.facing.x):
+		side = 5.0
+	return player.global_position + Vector2(side, -1)
 
 
 func _pose_for(role: String) -> String:
