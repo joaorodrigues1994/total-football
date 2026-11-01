@@ -17,9 +17,9 @@ const DROPBACK_YARDS := 5.0
 const BALL_SPEED := 360.0
 const CATCH_RADIUS := 20.0
 ## O ataque (virado para a direita) fica deslocado para a esquerda da tela, mostrando mais campo à frente.
-const CAMERA_LOOK_AHEAD := 100.0
+const CAMERA_LOOK_AHEAD := 170.0
 ## Margem mínima (px) entre o QB e a borda da tela durante o passe.
-const CAMERA_QB_MARGIN := 48.0
+const CAMERA_QB_MARGIN := 50.0
 
 @export var camera: MatchCamera
 ## Linha de jarda da bola (0 = goal line esquerda, 100 = direita).
