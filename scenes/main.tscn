@@ -7,6 +7,11 @@
 
 [node name="Main" type="Node2D"]
 
+[node name="MatchCamera" type="Camera2D" parent="." node_paths=PackedStringArray("target")]
+position = Vector2(720, 216)
+script = ExtResource("2")
+target = NodePath("../Player")
+
 [node name="Field" type="Node2D" parent="."]
 script = ExtResource("1")
 
@@ -24,8 +29,3 @@ team = 1
 [node name="HumanController" type="Node" parent="." node_paths=PackedStringArray("controlled")]
 script = ExtResource("4")
 controlled = NodePath("../Player")
-
-[node name="MatchCamera" type="Camera2D" parent="." node_paths=PackedStringArray("target")]
-position = Vector2(720, 216)
-script = ExtResource("2")
-target = NodePath("../Player")

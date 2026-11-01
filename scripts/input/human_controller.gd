@@ -5,6 +5,11 @@ extends Node
 @export var controlled: Player
 
 
+func _ready() -> void:
+	if controlled:
+		controlled.is_controlled = true
+
+
 func _physics_process(_delta: float) -> void:
 	if controlled:
 		controlled.input_dir = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")

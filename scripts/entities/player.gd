@@ -7,11 +7,18 @@ enum Team { A, B }
 
 @export var team := Team.A
 
+## Indica (com o "P") que o jogador humano controla este atleta.
+var is_controlled := false:
+	set(value):
+		is_controlled = value
+		_marker.visible = value
+
 ## Direção desejada, definida por quem controla este jogador.
 var input_dir := Vector2.ZERO
 var facing := Vector2.RIGHT
 
 var _sprite := AnimatedSprite2D.new()
+var _marker := ControlMarker.new()
 
 
 func _ready() -> void:
@@ -20,7 +27,17 @@ func _ready() -> void:
 	var sheet: Texture2D = load("res://assets/sprites/player_team_%s.png" % ("a" if team == Team.A else "b"))
 	_sprite.sprite_frames = PlayerSprites.build(sheet)
 	_sprite.offset = Vector2(0, -2)
+	_marker.color = Color(0.35, 0.55, 1.0) if team == Team.A else Color(1.0, 0.35, 0.35)
+	_marker.z_index = 10
+	_marker.visible = is_controlled
+	_sprite.add_child(_marker)
 	add_child(_sprite)
+
+
+func _process(_delta: float) -> void:
+	# Só visual: desloca o sprite para acompanhar a perspectiva do campo.
+	_sprite.position.x = FieldPerspective.project_x(
+			global_position.x, global_position.y, FieldPerspective.camera_x(self)) - global_position.x
 
 
 func _physics_process(delta: float) -> void:
