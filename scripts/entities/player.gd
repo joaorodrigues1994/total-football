@@ -36,6 +36,9 @@ var is_pass_target := false:
 		is_pass_target = value
 		_target_marker.visible = value
 
+## Multiplicador de velocidade (menor que 1 enquanto o jogador está sendo bloqueado).
+var speed_scale := 1.0
+
 ## Tempo em que este defensor não pode tentar tackle (depois de errar um tackle).
 var tackle_cooldown := 0.0
 
@@ -128,7 +131,7 @@ func _physics_process(delta: float) -> void:
 		if _action_timer <= 0.0:
 			action = Action.NONE
 	var dir := input_dir.limit_length(1.0)
-	var max_speed := FieldConstants.yards_to_px(attributes.max_speed_yards())
+	var max_speed := FieldConstants.yards_to_px(attributes.max_speed_yards()) * speed_scale
 	var accel := FieldConstants.yards_to_px(attributes.acceleration_yards())
 	velocity = velocity.move_toward(dir * max_speed, accel * delta)
 	if dir != Vector2.ZERO:

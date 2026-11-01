@@ -14,6 +14,12 @@ const STANCE_ROLES := ["LT", "LG", "C", "RG", "RT", "TE", "LDE", "LDT", "RDT", "
 const START_ROLES := ["WR1", "WR2", "WR3"]
 const READY_ROLES := ["RB"]
 const RUSH_ROLES := ["LDE", "LDT", "RDT", "RDE"]
+const LINE_ROLES := ["LT", "LG", "C", "RG", "RT"]
+## Quem bloqueia: na corrida a linha, o TE e os WR; no passe só a linha.
+const RUN_BLOCK_ROLES := ["LT", "LG", "C", "RG", "RT", "TE", "WR1", "WR2", "WR3"]
+## Defensor em contato com o bloqueador (px) fica mais lento.
+const BLOCK_ENGAGE_DISTANCE := 22.0
+const BLOCK_BASE_SLOW := 0.4
 const SNAP_TIME := 0.3
 const HANDOFF_DISTANCE := 18.0
 ## Depois da entrega o QB sai lateralmente da frente do RB por este tempo.
@@ -65,6 +71,7 @@ var _rb: Player
 var _kicker: Player
 var _carrier: Player
 var _receivers: Array[Player] = []
+var _blocks: Dictionary = {}  # bloqueador -> defensor atribuído
 var _runners: Array[RouteRunner] = []
 var _target_index := 0
 var _defense_index := 0
@@ -162,6 +169,9 @@ func _physics_process(delta: float) -> void:
 		_check_touchdown()
 	if state in [State.HANDOFF, State.DROPBACK, State.PASSING, State.RUNNING]:
 		_check_tackles()
+	if play_kind == PlayKind.SCRIMMAGE and state in [State.SNAP, State.HANDOFF, State.DROPBACK,
+			State.PASSING, State.FLIGHT, State.RUNNING]:
+		_update_blocks()
 	_update_camera_focus()
 	_message_time = maxf(_message_time - delta, 0.0)
 	var banner := _message if _message_time > 0.0 else (_prompt if state == State.PRE_SNAP else "")
@@ -257,6 +267,7 @@ func _start_play() -> void:
 			else:
 				rules.snap()
 			_rb.pose = ""
+			_assign_blocks(is_pass)
 			state = State.SNAP
 			if is_pass:
 				for i in _receivers.size():
@@ -295,6 +306,49 @@ func defender_target(player: Player) -> Variant:
 			if player in defense:
 				return _carrier.global_position
 	return null
+
+
+## Cada bloqueador pega o defensor mais próximo que ainda não tem bloqueador.
+func _assign_blocks(is_pass: bool) -> void:
+	_blocks.clear()
+	var taken: Array[Player] = []
+	for p in offense:
+		if p.role not in (LINE_ROLES if is_pass else RUN_BLOCK_ROLES):
+			continue
+		var pick := _nearest_free_defender(p, taken)
+		_blocks[p] = pick
+		taken.append(pick)
+
+
+func _nearest_free_defender(blocker: Player, taken: Array[Player]) -> Player:
+	var free: Array[Player] = []
+	for d in defense:
+		if d not in taken and d.action != Player.Action.DOWN:
+			free.append(d)
+	return _nearest_of(free if not free.is_empty() else defense, blocker.global_position, INF)
+
+
+## Tarefa de bloqueio de um jogador: defensor e ponto a proteger (portador, ou QB). null = não bloqueia.
+func block_job(player: Player) -> Variant:
+	if play_kind != PlayKind.SCRIMMAGE or not _blocks.has(player) or state == State.PRE_SNAP or state == State.DEAD:
+		return null
+	var defender: Player = _blocks[player]
+	if defender.action == Player.Action.DOWN:  # defensor caído: procura outro
+		defender = _nearest_free_defender(player, [])
+		_blocks[player] = defender
+	return {"defender": defender, "protect": (_carrier if _carrier else _qb).global_position}
+
+
+## Defensor em contato com o bloqueador anda mais devagar (mais ainda se o bloqueador for mais forte).
+func _update_blocks() -> void:
+	for d in defense:
+		d.speed_scale = 1.0
+	for blocker in _blocks:
+		var defender: Player = _blocks[blocker]
+		if blocker.global_position.distance_to(defender.global_position) > BLOCK_ENGAGE_DISTANCE:
+			continue
+		var diff: int = blocker.attributes.strength - defender.attributes.strength
+		defender.speed_scale = minf(defender.speed_scale, clampf(BLOCK_BASE_SLOW - diff * 0.004, 0.1, 0.8))
 
 
 func _check_touchdown() -> void:
@@ -361,6 +415,8 @@ func _stop_everything(result: String, events: Dictionary, banner: String) -> voi
 	for p in offense + defense:
 		p.input_dir = Vector2.ZERO
 	_ball.height = 0.0
+	for d in defense:
+		d.speed_scale = 1.0
 	_show_message("FINAL" if events["game_over"] else banner)
 
 
@@ -593,6 +649,13 @@ func _setup(forced_kind: PlayKind = PlayKind.SCRIMMAGE) -> void:
 	_kicker = _find(offense, "K")
 	_receivers.clear()
 	_runners.clear()
+	_blocks.clear()
+	if play_kind == PlayKind.SCRIMMAGE:
+		for p in offense:
+			if p.role in RUN_BLOCK_ROLES:
+				var blocker_ai := BlockerAI.new()
+				blocker_ai.match = self
+				p.add_child(blocker_ai)
 	if play_kind == PlayKind.SCRIMMAGE:
 		for role in Routes.TARGET_ORDER:
 			var receiver := _find(offense, role)
