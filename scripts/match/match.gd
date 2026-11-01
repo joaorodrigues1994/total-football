@@ -634,13 +634,37 @@ func _update_flight(delta: float) -> void:
 		return
 	_ball.height = 0.0
 	var catcher := _nearest_of(_receivers, _flight.to, CATCH_RADIUS)
-	if catcher:
+	var interceptor := _nearest_of(defense, _flight.to, CATCH_RADIUS)
+	if interceptor and (catcher == null or _defender_wins_ball(catcher, interceptor)):
+		_intercept(interceptor)
+	elif catcher:
 		for i in _receivers.size():
 			_runners[i].stop()
 			_receivers[i].is_pass_target = false
 		_take_control(catcher)
 	else:
 		_end_play("incomplete")
+
+
+## Recebedor e defensor chegam juntos à bola: o sorteio é proporcional ao atributo de recepção de cada um.
+func _defender_wins_ball(receiver: Player, defender: Player) -> bool:
+	var r := receiver.attributes.receiving
+	var d := defender.attributes.receiving
+	return rules.rng.randf() < float(d) / float(r + d)
+
+
+## Interceptação: a posse troca na jarda da bola e o defensor corre com ela (retorno, com seus bloqueadores).
+func _intercept(interceptor: Player) -> void:
+	for i in _receivers.size():
+		_runners[i].stop()
+		_receivers[i].is_pass_target = false
+	_show_message("INTERCEPTED!")
+	_start_return(interceptor)
+	var blockers: Array[Player] = []
+	for p in offense:
+		if p != interceptor:
+			blockers.append(p)
+	_block_system.begin("punt_return", blockers, defense, attack_dir)
 
 
 ## Chute (punt, kickoff, field goal ou extra point): a bola voa até o ponto de queda ou até as traves.
