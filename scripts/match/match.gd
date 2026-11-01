@@ -2,7 +2,7 @@ class_name Match
 extends Node2D
 ## Monta a partida e conduz a jogada: formação, snap, handoff e corrida.
 
-enum State { PRE_SNAP, SNAP, HANDOFF, RUNNING }
+enum State { PRE_SNAP, SNAP, HANDOFF, RUNNING, DEAD }
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const STANCE_ROLES := ["LT", "LG", "C", "RG", "RT", "TE", "LDE", "LDT", "RDT", "RDE"]
@@ -68,12 +68,25 @@ func _physics_process(delta: float) -> void:
 				_controller.controlled = _rb
 				_controller.enabled = true
 				camera.target = _rb
+				_rb.downed.connect(_on_carrier_downed)
 				_clear_time = CLEAR_TIME
 				_clear_side = -1.0
 				state = State.RUNNING
 		State.RUNNING:
 			_ball.world_pos = _hands(_carrier)
 			_clear_qb(delta)
+			if Input.is_action_just_pressed("btn_s"):
+				_carrier.try_juke()
+			if Input.is_action_just_pressed("btn_d"):
+				_carrier.try_dive()
+		State.DEAD:
+			_ball.world_pos = _hands(_carrier)
+			_clear_qb(delta)
+
+
+func _on_carrier_downed() -> void:
+	state = State.DEAD
+	_controller.enabled = false
 
 
 func _setup() -> void:

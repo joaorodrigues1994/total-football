@@ -4,6 +4,16 @@ extends CharacterBody2D
 
 @export var attributes: PlayerAttributes
 enum Team { A, B }
+enum Action { NONE, JUKE, DIVE, DOWN }
+
+const ACTION_ANIMS := {Action.JUKE: "juke_side", Action.DIVE: "dive_side", Action.DOWN: "lying_side"}
+const JUKE_TIME := 0.3
+const JUKE_COOLDOWN := 0.6
+const DIVE_TIME := 0.2
+const DIVE_YARDS := 2.0
+
+## Emitido quando o jogador termina o pulo e cai no chão.
+signal downed
 
 @export var team := Team.A
 @export var role := ""
@@ -20,6 +30,9 @@ var facing := Vector2.RIGHT
 ## Pose de largada ("stance", "start", "ready") mostrada enquanto o jogador está parado.
 var pose := ""
 
+var action := Action.NONE
+var _action_timer := 0.0
+var _juke_cooldown := 0.0
 var _sprite := AnimatedSprite2D.new()
 var _marker := ControlMarker.new()
 
@@ -43,7 +56,49 @@ func _process(_delta: float) -> void:
 			global_position.x, global_position.y, FieldPerspective.camera_x(self)) - global_position.x
 
 
+## Finta para escapar de tackles (a esquiva em si vale a partir da etapa de tackles).
+func try_juke() -> bool:
+	if action != Action.NONE or _juke_cooldown > 0.0:
+		return false
+	action = Action.JUKE
+	_action_timer = JUKE_TIME
+	_juke_cooldown = JUKE_COOLDOWN
+	return true
+
+
+## Pulo para a frente: sem controle no ar; ao cair o jogador fica no chão.
+func try_dive() -> bool:
+	if action == Action.DIVE or action == Action.DOWN:
+		return false
+	action = Action.DIVE
+	_action_timer = DIVE_TIME
+	return true
+
+
+func is_juking() -> bool:
+	return action == Action.JUKE
+
+
 func _physics_process(delta: float) -> void:
+	_juke_cooldown = maxf(_juke_cooldown - delta, 0.0)
+	if action == Action.DOWN:
+		velocity = Vector2.ZERO
+		_update_animation()
+		return
+	if action == Action.DIVE:
+		velocity = facing.normalized() * FieldConstants.yards_to_px(DIVE_YARDS) / DIVE_TIME
+		move_and_slide()
+		_action_timer -= delta
+		if _action_timer <= 0.0:
+			action = Action.DOWN
+			velocity = Vector2.ZERO
+			downed.emit()
+		_update_animation()
+		return
+	if action == Action.JUKE:
+		_action_timer -= delta
+		if _action_timer <= 0.0:
+			action = Action.NONE
 	var dir := input_dir.limit_length(1.0)
 	var max_speed := FieldConstants.yards_to_px(attributes.max_speed_yards())
 	var accel := FieldConstants.yards_to_px(attributes.acceleration_yards())
@@ -58,6 +113,12 @@ func _physics_process(delta: float) -> void:
 
 
 func _update_animation() -> void:
+	if action != Action.NONE:
+		_sprite.flip_h = facing.x < 0.0
+		var anim: String = ACTION_ANIMS[action]
+		if _sprite.animation != anim:
+			_sprite.play(anim)
+		return
 	var view := "side"
 	if absf(facing.y) > absf(facing.x):
 		view = "down" if facing.y > 0.0 else "up"

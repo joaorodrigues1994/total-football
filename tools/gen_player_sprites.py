@@ -1,5 +1,5 @@
 """Gera os spritesheets base dos jogadores (24x24) em PNG puro, sem dependencias.
-Linhas: idle_side, run_side, idle_down, run_down, idle_up, run_up, stance_side, start_side, ready_side. 4 colunas (idle usa 2).
+Linhas: idle_side, run_side, idle_down, run_down, idle_up, run_up, stance_side, start_side, ready_side, juke_side, dive_side, lying_side. 4 colunas (idle usa 2).
 Os PNGs gerados sao a base para refinar no LibreSprite."""
 import struct
 import sys
@@ -132,6 +132,45 @@ def draw_pose(kind, frame, main):
     return c
 
 
+def shifted(c, dx, dy):
+    out = Canvas()
+    for y in range(S):
+        for x in range(S):
+            if c.p[y][x] is not None and 0 <= x + dx < S and 0 <= y + dy < S:
+                out.p[y + dy][x + dx] = c.p[y][x]
+    return out
+
+
+def draw_action(kind, frame, main):
+    """Juke (finta), pulo para a frente e jogador caido. Vista lateral, virado para a direita."""
+    m, light, dark = palette(main)
+    if kind == "juke":
+        if frame == 0:
+            return shifted(draw("side", 0, True, main), -2, 0)
+        if frame == 1:
+            return draw("down", 0, False, main)
+        return shifted(draw("side", 2, True, main), 2, 0)
+    c = Canvas()
+    c.rect(2, 13, 8, 15, GRAY)
+    c.rect(3, 16, 8, 17, GRAY)
+    c.rect(0, 13, 1, 14, SHOE)
+    c.rect(1, 16, 2, 17, SHOE)
+    c.rect(8, 11, 16, 16, m)
+    c.rect(8, 16, 16, 16, dark)
+    c.rect(10, 13, 12, 14, WHITE)
+    c.rect(16, 12, 17, 13, m)
+    c.rect(18, 12, 22, 13, SKIN)
+    c.rect(16, 15, 21, 15, SKIN)
+    c.ellipse(17, 8, 4.5, 4, m)
+    c.rect(14, 5, 16, 5, light)
+    c.rect(19, 9, 20, 10, SKIN)
+    c.rect(20, 9, 21, 12, MASK_D)
+    c.outline()
+    if kind == "dive":
+        return shifted(c, 0, 3 * frame)
+    return shifted(c, 0, 6)
+
+
 def draw(view, frame, moving, main):
     m, light, dark = palette(main)
     c = Canvas()
@@ -195,13 +234,19 @@ def write_png(path, pixels, w, h):
 def main():
     rows = [("side", False, 2), ("side", True, 4), ("down", False, 2),
             ("down", True, 4), ("up", False, 2), ("up", True, 4),
-            ("stance", None, 2), ("start", None, 2), ("ready", None, 2)]
+            ("stance", None, 2), ("start", None, 2), ("ready", None, 2),
+            ("juke", None, 3), ("dive", None, 2), ("lying", None, 1)]
     for team, color in TEAMS.items():
         w, h = S * 4, S * len(rows)
         sheet = [[None] * w for _ in range(h)]
         for r, (view, moving, n) in enumerate(rows):
             for f in range(n):
-                cv = draw_pose(view, f, color) if moving is None else draw(view, f, moving, color)
+                if view in ("juke", "dive", "lying"):
+                    cv = draw_action(view, f, color)
+                elif moving is None:
+                    cv = draw_pose(view, f, color)
+                else:
+                    cv = draw(view, f, moving, color)
                 for y in range(S):
                     for x in range(S):
                         sheet[r * S + y][f * S + x] = cv.p[y][x]
