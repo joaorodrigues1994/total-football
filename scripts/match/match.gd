@@ -1,14 +1,16 @@
 class_name Match
 extends Node2D
-## Monta a partida e conduz a jogada: formação, snap, corrida (handoff) e passe.
+## Monta a partida e conduz a jogada: formação, snap, corrida (handoff), passe e tackles.
 
 enum State { PRE_SNAP, SNAP, HANDOFF, DROPBACK, PASSING, FLIGHT, RUNNING, DEAD }
 enum PlayType { RUN, PASS }
+enum Side { OFFENSE, DEFENSE }
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const STANCE_ROLES := ["LT", "LG", "C", "RG", "RT", "TE", "LDE", "LDT", "RDT", "RDE"]
 const START_ROLES := ["WR1", "WR2", "WR3"]
 const READY_ROLES := ["RB"]
+const RUSH_ROLES := ["LDE", "LDT", "RDT", "RDE"]
 const SNAP_TIME := 0.3
 const HANDOFF_DISTANCE := 18.0
 ## Depois da entrega o QB sai lateralmente da frente do RB por este tempo.
@@ -16,6 +18,13 @@ const CLEAR_TIME := 0.7
 const DROPBACK_YARDS := 5.0
 const BALL_SPEED := 360.0
 const CATCH_RADIUS := 20.0
+## Contato (corpos se tocam a 14 px) que derruba o portador.
+const TACKLE_RADIUS := 16.0
+## Depois de errar o tackle (portador em juke) o defensor não tenta de novo por este tempo.
+const MISS_COOLDOWN := 0.6
+const GET_UP_TIME := 0.8
+## Na defesa a CPU dá o snap depois deste tempo (janela para trocar de defensor com A).
+const DEFENSE_SNAP_DELAY := 5.0
 ## O ataque (virado para a direita) fica deslocado para a esquerda da tela, mostrando mais campo à frente.
 const CAMERA_LOOK_AHEAD := 170.0
 ## Margem mínima (px) entre o QB e a borda da tela durante o passe.
@@ -27,6 +36,9 @@ const CAMERA_QB_MARGIN := 50.0
 
 var state := State.PRE_SNAP
 var play_type := PlayType.RUN
+## Lado controlado pelo humano. TEMPORÁRIO: alterna com a tecla T até existir posse alternada.
+var human_side := Side.OFFENSE
+var play_result := ""
 var offense: Array[Player] = []
 var defense: Array[Player] = []
 var scrimmage_spot := Vector2.ZERO
@@ -40,6 +52,8 @@ var _carrier: Player
 var _receivers: Array[Player] = []
 var _runners: Array[RouteRunner] = []
 var _target_index := 0
+var _defense_index := 0
+var _presnap_time := 0.0
 var _flight: PassFlight
 var _snap_progress := 0.0
 var _snap_from := Vector2.ZERO
@@ -57,13 +71,16 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if Input.is_action_just_pressed("debug_reset"):  # TEMPORÁRIO: some quando existirem os tackles.
+	if Input.is_action_just_pressed("debug_reset"):  # TEMPORÁRIO
+		_setup()
+		return
+	if Input.is_action_just_pressed("debug_swap_side") and state == State.PRE_SNAP:  # TEMPORÁRIO
+		human_side = Side.DEFENSE if human_side == Side.OFFENSE else Side.OFFENSE
 		_setup()
 		return
 	match state:
 		State.PRE_SNAP:
-			if Input.is_action_just_pressed("btn_a"):
-				_start_play()
+			_update_pre_snap(delta)
 		State.SNAP:
 			_snap_progress = minf(_snap_progress + delta / SNAP_TIME, 1.0)
 			_ball.world_pos = _snap_from.lerp(_hands(_qb), _snap_progress)
@@ -94,23 +111,47 @@ func _physics_process(delta: float) -> void:
 		State.RUNNING:
 			_ball.world_pos = _hands(_carrier)
 			_clear_qb(delta)
-			if Input.is_action_just_pressed("btn_s"):
-				_carrier.try_juke()
-			if Input.is_action_just_pressed("btn_d"):
-				_carrier.try_dive()
+			if human_side == Side.OFFENSE:
+				if Input.is_action_just_pressed("btn_s"):
+					_carrier.try_juke()
+				if Input.is_action_just_pressed("btn_d"):
+					_carrier.try_dive()
+			elif _carrier.action != Player.Action.DOWN:
+				_carrier.input_dir = Vector2.RIGHT  # CPU: corre reto para a frente
 		State.DEAD:
 			if _carrier:
 				_ball.world_pos = _hands(_carrier)
 			_clear_qb(delta)
+	if state in [State.HANDOFF, State.DROPBACK, State.PASSING, State.RUNNING]:
+		_check_tackles()
+	if human_side == Side.DEFENSE:
+		_anchor.global_position = _ball.world_pos
+
+
+## Ataque: A dá o snap (Esquerda + A = passe). Defesa: A troca de defensor e a CPU dá o snap.
+func _update_pre_snap(delta: float) -> void:
+	if human_side == Side.OFFENSE:
+		if Input.is_action_just_pressed("btn_a"):
+			_start_play()
+		return
+	if Input.is_action_just_pressed("btn_a"):
+		_defense_index = (_defense_index + 1) % defense.size()
+		_controller.controlled = defense[_defense_index]
+	_presnap_time -= delta
+	if _presnap_time <= 0.0:
+		_start_play()
 
 
 func _start_play() -> void:
-	play_type = PlayType.PASS if Input.is_action_pressed("ui_left") else PlayType.RUN
+	var is_pass := human_side == Side.OFFENSE and Input.is_action_pressed("ui_left")
+	play_type = PlayType.PASS if is_pass else PlayType.RUN
 	_rb.pose = ""
 	_snap_progress = 0.0
 	_snap_from = _ball.world_pos
 	state = State.SNAP
-	if play_type == PlayType.PASS:
+	if human_side == Side.DEFENSE:
+		_controller.enabled = true  # a troca de defensor fica travada a partir do snap
+	if is_pass:
 		for i in _receivers.size():
 			var p := _receivers[i]
 			p.pose = ""
@@ -118,11 +159,50 @@ func _start_play() -> void:
 		_set_target(0)
 
 
-## Durante o passe, enquadra o recebedor selecionado sem perder o QB de vista.
-func _frame_pass() -> void:
-	var half_width := get_viewport_rect().size.x / 2.0
-	var gap := _receivers[_target_index].global_position.x - _qb.global_position.x
-	camera.look_ahead.x = clampf(gap / 2.0, CAMERA_LOOK_AHEAD, half_width - CAMERA_QB_MARGIN)
+## Para onde cada defensor vai. null = fica parado.
+func defender_target(role: String) -> Variant:
+	match state:
+		State.SNAP, State.HANDOFF, State.DROPBACK, State.PASSING:
+			if play_type == PlayType.RUN or role in RUSH_ROLES:
+				return (_carrier if _carrier else _qb).global_position
+		State.RUNNING:
+			return _carrier.global_position
+	return null
+
+
+func _check_tackles() -> void:
+	if _carrier == null or _carrier.action == Player.Action.DOWN:
+		return
+	for d in defense:
+		if d.action == Player.Action.DOWN or d.tackle_cooldown > 0.0:
+			continue
+		if d.global_position.distance_to(_carrier.global_position) > TACKLE_RADIUS:
+			continue
+		if _carrier.is_juking():
+			d.tackle_cooldown = MISS_COOLDOWN
+			continue
+		_tackle(d)
+		return
+
+
+func _tackle(defender: Player) -> void:
+	var sack := _carrier == _qb and play_type == PlayType.PASS
+	defender.facing = (_carrier.global_position - defender.global_position).normalized()
+	defender.knock_down(GET_UP_TIME)
+	_carrier.knock_down()
+	_end_play("sack" if sack else "tackle")
+
+
+func _end_play(result: String) -> void:
+	state = State.DEAD
+	play_result = result
+	if _controller.controlled:
+		_controller.controlled.input_dir = Vector2.ZERO
+	_controller.enabled = false
+	for runner in _runners:
+		runner.stop()
+	for p in offense:
+		p.input_dir = Vector2.ZERO
 
 
 func _update_handoff() -> void:
@@ -134,6 +214,13 @@ func _update_handoff() -> void:
 		_take_control(_rb)
 		_clear_time = CLEAR_TIME
 		_clear_side = -1.0
+
+
+## Durante o passe, enquadra o recebedor selecionado sem perder o QB de vista.
+func _frame_pass() -> void:
+	var half_width := get_viewport_rect().size.x / 2.0
+	var gap := _receivers[_target_index].global_position.x - _qb.global_position.x
+	camera.look_ahead.x = clampf(gap / 2.0, CAMERA_LOOK_AHEAD, half_width - CAMERA_QB_MARGIN)
 
 
 ## S troca o recebedor, D lança a bola.
@@ -163,6 +250,7 @@ func _throw() -> void:
 	_flight = PassFlight.new(from, aim, t, minf(40.0, from.distance_to(aim) * 0.25))
 	_qb.input_dir = Vector2.ZERO
 	_controller.enabled = false
+	_carrier = null
 	_anchor.global_position = from
 	camera.look_ahead.x = CAMERA_LOOK_AHEAD
 	camera.target = _anchor
@@ -184,8 +272,7 @@ func _update_flight(delta: float) -> void:
 			_receivers[i].is_pass_target = false
 		_take_control(catcher)
 	else:
-		_carrier = null
-		state = State.DEAD  # passe incompleto
+		_end_play("incomplete")
 
 
 func _nearest_receiver(spot: Vector2) -> Player:
@@ -199,20 +286,21 @@ func _nearest_receiver(spot: Vector2) -> Player:
 	return best
 
 
-## O jogador passa a ser o portador controlado pelo humano.
+## O jogador passa a ser o portador. Com o humano no ataque, ele também passa a controlá-lo.
 func _take_control(player: Player) -> void:
 	_carrier = player
 	player.pose = ""
-	_controller.controlled = player
-	_controller.enabled = true
-	camera.target = player
+	if human_side == Side.OFFENSE:
+		_controller.controlled = player
+		_controller.enabled = true
+		camera.target = player
 	player.downed.connect(_on_carrier_downed, CONNECT_ONE_SHOT)
 	state = State.RUNNING
 
 
 func _on_carrier_downed() -> void:
-	state = State.DEAD
-	_controller.enabled = false
+	if state != State.DEAD:
+		_end_play("down")
 
 
 func _setup() -> void:
@@ -234,25 +322,37 @@ func _setup() -> void:
 		receiver.add_child(runner)
 		_receivers.append(receiver)
 		_runners.append(runner)
+	for d in defense:
+		var ai := DefenderAI.new()
+		ai.match = self
+		d.add_child(ai)
 	_carrier = null
 	_flight = null
+	play_result = ""
+	_defense_index = 0
+	_presnap_time = DEFENSE_SNAP_DELAY
 	state = State.PRE_SNAP
 
 	_controller = HumanController.new()
 	add_child(_controller)
 	_controller.enabled = false
-	_controller.controlled = _qb
+	_controller.controlled = _qb if human_side == Side.OFFENSE else defense[0]
 
 	_ball = Ball.new()
 	_ball.world_pos = scrimmage_spot
 	add_child(_ball)
 	_anchor = Node2D.new()
 	add_child(_anchor)
+	_anchor.global_position = scrimmage_spot
 
 	if camera:
-		camera.look_ahead = Vector2(CAMERA_LOOK_AHEAD, 0.0)
-		camera.target = _qb
-		camera.global_position = _qb.global_position + camera.look_ahead
+		if human_side == Side.OFFENSE:
+			camera.look_ahead = Vector2(CAMERA_LOOK_AHEAD, 0.0)
+			camera.target = _qb
+		else:
+			camera.look_ahead = Vector2.ZERO
+			camera.target = _anchor
+		camera.global_position = camera.target.global_position + camera.look_ahead
 
 
 ## O QB sai para o lado oposto ao que o RB corta; sem corte, vai para a esquerda do ataque.

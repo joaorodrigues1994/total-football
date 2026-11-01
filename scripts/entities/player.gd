@@ -12,7 +12,7 @@ const JUKE_COOLDOWN := 0.6
 const DIVE_TIME := 0.2
 const DIVE_YARDS := 2.0
 
-## Emitido quando o jogador termina o pulo e cai no chão.
+## Emitido quando o jogador cai no chão para ficar (fim do pulo ou tackle sofrido).
 signal downed
 
 @export var team := Team.A
@@ -36,8 +36,12 @@ var is_pass_target := false:
 		is_pass_target = value
 		_target_marker.visible = value
 
+## Tempo em que este defensor não pode tentar tackle (depois de errar um tackle).
+var tackle_cooldown := 0.0
+
 var action := Action.NONE
 var _action_timer := 0.0
+var _get_up_time := 0.0
 var _juke_cooldown := 0.0
 var _sprite := AnimatedSprite2D.new()
 var _marker := ControlMarker.new()
@@ -66,7 +70,7 @@ func _process(_delta: float) -> void:
 			global_position.x, global_position.y, FieldPerspective.camera_x(self)) - global_position.x
 
 
-## Finta para escapar de tackles (a esquiva em si vale a partir da etapa de tackles).
+## Finta: durante ela o portador escapa de tackles.
 func try_juke() -> bool:
 	if action != Action.NONE or _juke_cooldown > 0.0:
 		return false
@@ -85,14 +89,28 @@ func try_dive() -> bool:
 	return true
 
 
+## Derruba o jogador. Com get_up_time > 0 ele se levanta depois; sem, fica no chão (fim da jogada).
+func knock_down(get_up_time := 0.0) -> void:
+	action = Action.DOWN
+	velocity = Vector2.ZERO
+	_get_up_time = get_up_time
+	if get_up_time <= 0.0:
+		downed.emit()
+
+
 func is_juking() -> bool:
 	return action == Action.JUKE
 
 
 func _physics_process(delta: float) -> void:
 	_juke_cooldown = maxf(_juke_cooldown - delta, 0.0)
+	tackle_cooldown = maxf(tackle_cooldown - delta, 0.0)
 	if action == Action.DOWN:
 		velocity = Vector2.ZERO
+		if _get_up_time > 0.0:
+			_get_up_time -= delta
+			if _get_up_time <= 0.0:
+				action = Action.NONE
 		_update_animation()
 		return
 	if action == Action.DIVE:

@@ -1,12 +1,13 @@
 class_name InputSetup
 extends RefCounted
-## Registra as ações de teclado do jogo (A, S, D) e a tecla temporária de reset (R).
+## Registra as ações de teclado do jogo (A, S, D) e as teclas temporárias de reset (R) e de trocar ataque/defesa (T).
 
 const KEYS := {
 	"btn_a": KEY_A,
 	"btn_s": KEY_S,
 	"btn_d": KEY_D,
 	"debug_reset": KEY_R,
+	"debug_swap_side": KEY_T,
 }
 
 
