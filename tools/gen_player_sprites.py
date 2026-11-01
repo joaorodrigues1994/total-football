@@ -1,5 +1,5 @@
 """Gera os spritesheets base dos jogadores (24x24) em PNG puro, sem dependencias.
-Linhas: idle_side, run_side, idle_down, run_down, idle_up, run_up. 4 colunas (idle usa 2).
+Linhas: idle_side, run_side, idle_down, run_down, idle_up, run_up, stance_side, start_side, ready_side. 4 colunas (idle usa 2).
 Os PNGs gerados sao a base para refinar no LibreSprite."""
 import struct
 import sys
@@ -67,6 +67,71 @@ def legs(c, frame, moving, view, b):
         c.rect(x, 21 - lift, x + w, 21 - lift, SHOE)
 
 
+def draw_pose(kind, frame, main):
+    """Poses de largada (vista lateral, virado para a direita)."""
+    m, light, dark = palette(main)
+    c = Canvas()
+    b = 1 if frame % 2 == 1 else 0
+    if kind == "stance":  # agachado, mao no chao (linhas)
+        c.rect(6, 14, 9, 17, GRAY)
+        c.rect(6, 17, 9, 19, GRAY)
+        c.rect(5, 20, 9, 21, SHOE)
+        c.rect(10, 16, 13, 19, GRAY)
+        c.rect(11, 19, 14, 21, WHITE)
+        c.rect(10, 21, 14, 21, SHOE)
+        c.rect(6, 11 + b, 15, 15, m)
+        c.rect(6, 15, 15, 15, dark)
+        c.rect(9, 12 + b, 11, 13 + b, WHITE)
+        c.rect(14, 14, 15, 15, m)
+        c.rect(15, 15, 16, 19, SKIN)
+        c.rect(16, 20, 18, 20, SKIN)
+        c.ellipse(16, 9 + b, 4.5, 4, m)
+        c.rect(14, 6 + b, 16, 6 + b, light)
+        c.rect(18, 9 + b, 19, 11 + b, SKIN)
+        c.rect(19, 9 + b, 20, 12 + b, MASK_D)
+        c.rect(14, 9 + b, 14, 10 + b, dark)
+    elif kind == "start":  # saida de recebedor: inclinado, um pe atras
+        c.rect(7, 15, 9, 18, GRAY)
+        c.rect(6, 19, 8, 20, WHITE)
+        c.rect(5, 21, 8, 21, SHOE)
+        c.rect(13, 15 + b, 15, 18, GRAY)
+        c.rect(13, 19, 15, 20, WHITE)
+        c.rect(13, 21, 16, 21, SHOE)
+        c.rect(9, 10 + b, 16, 15, m)
+        c.rect(9, 15, 16, 15, dark)
+        c.rect(11, 12 + b, 13, 13 + b, WHITE)
+        c.rect(15, 11 + b, 16, 12 + b, m)
+        c.rect(16, 13 + b, 17, 15 + b, SKIN)
+        c.rect(8, 11 + b, 9, 12 + b, m)
+        c.rect(7, 13 + b, 8, 15 + b, SKIN)
+        c.ellipse(14, 6 + b, 5, 4.5, m)
+        c.rect(11, 3 + b, 13, 3 + b, light)
+        c.rect(10, 4 + b, 10, 4 + b, light)
+        c.rect(16, 7 + b, 17, 8 + b, SKIN)
+        c.rect(17, 7 + b, 18, 10 + b, MASK_D)
+        c.rect(13, 7 + b, 13, 8 + b, dark)
+    else:  # ready: joelhos flexionados, maos a frente para receber a bola
+        c.rect(9, 16, 11, 18, GRAY)
+        c.rect(9, 19, 11, 20, WHITE)
+        c.rect(9, 21, 12, 21, SHOE)
+        c.rect(13, 16, 15, 18, GRAY)
+        c.rect(13, 19, 15, 20, WHITE)
+        c.rect(13, 21, 16, 21, SHOE)
+        c.rect(9, 10 + b, 15, 15, m)
+        c.rect(9, 15, 15, 15, dark)
+        c.rect(10, 12 + b, 12, 13 + b, WHITE)
+        c.rect(14, 12 + b, 16, 13 + b, m)
+        c.rect(17, 13 + b, 19, 14 + b, SKIN)
+        c.ellipse(13, 6 + b, 5, 4.5, m)
+        c.rect(10, 3 + b, 12, 3 + b, light)
+        c.rect(9, 4 + b, 9, 4 + b, light)
+        c.rect(15, 7 + b, 16, 8 + b, SKIN)
+        c.rect(16, 7 + b, 17, 10 + b, MASK_D)
+        c.rect(12, 7 + b, 12, 8 + b, dark)
+    c.outline()
+    return c
+
+
 def draw(view, frame, moving, main):
     m, light, dark = palette(main)
     c = Canvas()
@@ -129,13 +194,14 @@ def write_png(path, pixels, w, h):
 
 def main():
     rows = [("side", False, 2), ("side", True, 4), ("down", False, 2),
-            ("down", True, 4), ("up", False, 2), ("up", True, 4)]
+            ("down", True, 4), ("up", False, 2), ("up", True, 4),
+            ("stance", None, 2), ("start", None, 2), ("ready", None, 2)]
     for team, color in TEAMS.items():
         w, h = S * 4, S * len(rows)
         sheet = [[None] * w for _ in range(h)]
         for r, (view, moving, n) in enumerate(rows):
             for f in range(n):
-                cv = draw(view, f, moving, color)
+                cv = draw_pose(view, f, color) if moving is None else draw(view, f, moving, color)
                 for y in range(S):
                     for x in range(S):
                         sheet[r * S + y][f * S + x] = cv.p[y][x]

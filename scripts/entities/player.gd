@@ -17,6 +17,8 @@ var is_controlled := false:
 ## Direção desejada, definida por quem controla este jogador.
 var input_dir := Vector2.ZERO
 var facing := Vector2.RIGHT
+## Pose de largada ("stance", "start", "ready") mostrada enquanto o jogador está parado.
+var pose := ""
 
 var _sprite := AnimatedSprite2D.new()
 var _marker := ControlMarker.new()
@@ -60,5 +62,10 @@ func _update_animation() -> void:
 	if absf(facing.y) > absf(facing.x):
 		view = "down" if facing.y > 0.0 else "up"
 	_sprite.flip_h = view == "side" and facing.x < 0.0
-	var state := "run" if velocity.length() > 10.0 else "idle"
+	var moving := velocity.length() > 10.0
+	if pose != "" and not moving:
+		_sprite.flip_h = facing.x < 0.0
+		_sprite.play(pose + "_side")
+		return
+	var state := "run" if moving else "idle"
 	_sprite.play("%s_%s" % [state, view])
