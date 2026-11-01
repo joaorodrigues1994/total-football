@@ -168,11 +168,16 @@ func _physics_process(delta: float) -> void:
 	_hud.show_rules(rules, banner)
 
 
-## Na defesa o humano segue a bola; ao receber um chute, o retornador (jogador selecionado).
+## O retornador do humano corre sozinho até o ponto de queda enquanto a bola está no ar.
+func is_auto_moving(player: Player) -> bool:
+	return state == State.KICK_FLIGHT and human_side == Side.DEFENSE and player.role == "R" 			and play_kind in [PlayKind.KICKOFF, PlayKind.PUNT]
+
+
+## Na defesa o humano segue a bola (inclusive o chute no ar); antes do chute, o retornador selecionado.
 func _update_camera_focus() -> void:
 	if human_side != Side.DEFENSE:
 		return
-	if play_kind == PlayKind.SCRIMMAGE or _in_return:
+	if play_kind == PlayKind.SCRIMMAGE or _in_return or state == State.KICK_FLIGHT:
 		_anchor.global_position = _ball.world_pos
 		camera.target = _anchor
 	elif _controller.controlled:
@@ -471,7 +476,7 @@ func _launch_kick() -> void:
 				center_y + FieldConstants.yards_to_px(rules.rng.randf_range(-5.0, 5.0)))
 		_kick_landing = to
 	_flight = PassFlight.new(from, to, from.distance_to(to) / KICK_SPEED, minf(110.0, from.distance_to(to) * 0.25))
-	_controller.enabled = human_side == Side.DEFENSE and play_kind in [PlayKind.KICKOFF, PlayKind.PUNT]
+	_controller.enabled = false  # o retornador corre sozinho até o ponto de queda
 	_anchor.global_position = from
 	if human_side == Side.OFFENSE:
 		camera.look_ahead.x = attack_dir * CAMERA_LOOK_AHEAD

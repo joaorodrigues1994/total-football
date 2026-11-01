@@ -9,7 +9,7 @@ var match: Match
 
 func _physics_process(_delta: float) -> void:
 	var player := get_parent() as Player
-	if player.is_controlled:
+	if player.is_controlled and not match.is_auto_moving(player):
 		return
 	var target = match.defender_target(player)
 	if target == null:
