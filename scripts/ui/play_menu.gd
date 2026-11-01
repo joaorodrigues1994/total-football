@@ -5,7 +5,7 @@ extends CanvasLayer
 ## Só desenha; quem decide é o Match.
 
 const PANEL := Rect2(0, 330, 512, 118)
-const CENTERS := {"a": Vector2(130, 394), "s": Vector2(382, 394)}
+const CENTERS := {"a": Vector2(130, 402), "s": Vector2(382, 402)}
 const OFFSETS := {
 	"up": Vector2(-24, -22), "down": Vector2(-24, 30), "left": Vector2(-104, 4), "right": Vector2(34, 4),
 }
@@ -59,7 +59,7 @@ class _Canvas extends Control:
 		var buttons := {"a": "A", "s": "S"}
 		for group in PlayMenu.CENTERS:
 			var c: Vector2 = PlayMenu.CENTERS[group]
-			draw_string(font, Vector2(c.x - 40, 364), "%s + DIRECTION: %s" % [buttons[group], heads[group]],
+			draw_string(font, Vector2(c.x - 40, 362), "%s + DIRECTION: %s" % [buttons[group], heads[group]],
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, PlayMenu.TEXT_COLOR)
 			for dir in PlayMenu.OFFSETS:
 				var key := "%s_%s" % [dir, group]

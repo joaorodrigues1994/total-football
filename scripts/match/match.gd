@@ -63,7 +63,7 @@ var defense: Array[Player] = []
 var scrimmage_spot := Vector2.ZERO
 
 var _controller: HumanController
-var _hud := DebugHud.new()
+var _hud := Scoreboard.new()
 var _ball: Ball
 var _anchor: Node2D
 var _qb: Player
@@ -121,6 +121,8 @@ func _physics_process(delta: float) -> void:
 		return
 	if rules.tick(delta):  # quarto acabou entre jogadas
 		_show_message("END OF QUARTER")
+		if not rules.game_over:
+			_hud.show_overlay("END OF Q%d" % (rules.quarter - 1), "A %d  x  B %d" % [rules.score[0], rules.score[1]], 2.0)
 		_setup()
 		return
 	match state:
@@ -525,6 +527,8 @@ func _stop_everything(result: String, events: Dictionary, banner: String) -> voi
 		p.speed_scale = 1.0
 		p.shove = Vector2.ZERO
 		p.block_pose = ""
+	if events["quarter_ended"] and not events["game_over"]:
+		_hud.show_overlay("END OF Q%d" % (rules.quarter - 1), "A %d  x  B %d" % [rules.score[0], rules.score[1]], 2.0)
 	_show_message("FINAL" if events["game_over"] else banner)
 
 
