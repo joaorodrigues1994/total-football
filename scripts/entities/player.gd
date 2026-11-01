@@ -3,16 +3,24 @@ extends CharacterBody2D
 ## Atleta em campo. Recebe uma direção desejada (input_dir) de um controlador (humano ou IA).
 
 @export var attributes: PlayerAttributes
-@export var team_color := Color("1f4e8c")
+enum Team { A, B }
+
+@export var team := Team.A
 
 ## Direção desejada, definida por quem controla este jogador.
 var input_dir := Vector2.ZERO
 var facing := Vector2.RIGHT
 
+var _sprite := AnimatedSprite2D.new()
+
 
 func _ready() -> void:
 	if attributes == null:
 		attributes = PlayerAttributes.new()
+	var sheet: Texture2D = load("res://assets/sprites/player_team_%s.png" % ("a" if team == Team.A else "b"))
+	_sprite.sprite_frames = PlayerSprites.build(sheet)
+	_sprite.offset = Vector2(0, -2)
+	add_child(_sprite)
 
 
 func _physics_process(delta: float) -> void:
@@ -26,10 +34,13 @@ func _physics_process(delta: float) -> void:
 	position = position.clamp(Vector2.ZERO, Vector2(
 		FieldConstants.yards_to_px(FieldConstants.TOTAL_YARDS),
 		FieldConstants.yards_to_px(FieldConstants.WIDTH_YARDS)))
-	queue_redraw()
+	_update_animation()
 
 
-# Visual provisório (substituído pelos sprites do LibreSprite na etapa 3).
-func _draw() -> void:
-	draw_circle(Vector2.ZERO, 7.0, team_color)
-	draw_line(Vector2.ZERO, facing * 10.0, Color.WHITE, 2.0)
+func _update_animation() -> void:
+	var view := "side"
+	if absf(facing.y) > absf(facing.x):
+		view = "down" if facing.y > 0.0 else "up"
+	_sprite.flip_h = view == "side" and facing.x < 0.0
+	var state := "run" if velocity.length() > 10.0 else "idle"
+	_sprite.play("%s_%s" % [state, view])

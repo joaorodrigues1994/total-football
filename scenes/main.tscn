@@ -15,11 +15,11 @@ position = Vector2(720, 320)
 
 [node name="Dummy1" parent="." instance=ExtResource("3")]
 position = Vector2(800, 300)
-team_color = Color(0.55, 0.12, 0.16, 1)
+team = 1
 
 [node name="Dummy2" parent="." instance=ExtResource("3")]
 position = Vector2(800, 340)
-team_color = Color(0.55, 0.12, 0.16, 1)
+team = 1
 
 [node name="HumanController" type="Node" parent="." node_paths=PackedStringArray("controlled")]
 script = ExtResource("4")
