@@ -16,6 +16,10 @@ const CLEAR_TIME := 0.7
 const DROPBACK_YARDS := 5.0
 const BALL_SPEED := 360.0
 const CATCH_RADIUS := 20.0
+## O ataque (virado para a direita) fica deslocado para a esquerda da tela, mostrando mais campo à frente.
+const CAMERA_LOOK_AHEAD := 100.0
+## Margem mínima (px) entre o QB e a borda da tela durante o passe.
+const CAMERA_QB_MARGIN := 48.0
 
 @export var camera: MatchCamera
 ## Linha de jarda da bola (0 = goal line esquerda, 100 = direita).
@@ -71,6 +75,7 @@ func _physics_process(delta: float) -> void:
 			_update_handoff()
 		State.DROPBACK:
 			_ball.world_pos = _hands(_qb)
+			_frame_pass()
 			_pass_inputs()
 			if state == State.DROPBACK:
 				_qb.input_dir = Vector2.LEFT
@@ -82,6 +87,7 @@ func _physics_process(delta: float) -> void:
 					state = State.PASSING
 		State.PASSING:
 			_ball.world_pos = _hands(_qb)
+			_frame_pass()
 			_pass_inputs()
 		State.FLIGHT:
 			_update_flight(delta)
@@ -110,6 +116,13 @@ func _start_play() -> void:
 			p.pose = ""
 			_runners[i].start(Routes.PASS_TEST[p.role], p.global_position, 1.0)
 		_set_target(0)
+
+
+## Durante o passe, enquadra o recebedor selecionado sem perder o QB de vista.
+func _frame_pass() -> void:
+	var half_width := get_viewport_rect().size.x / 2.0
+	var gap := _receivers[_target_index].global_position.x - _qb.global_position.x
+	camera.look_ahead.x = clampf(gap / 2.0, CAMERA_LOOK_AHEAD, half_width - CAMERA_QB_MARGIN)
 
 
 func _update_handoff() -> void:
@@ -151,6 +164,7 @@ func _throw() -> void:
 	_qb.input_dir = Vector2.ZERO
 	_controller.enabled = false
 	_anchor.global_position = from
+	camera.look_ahead.x = CAMERA_LOOK_AHEAD
 	camera.target = _anchor
 	state = State.FLIGHT
 
@@ -236,8 +250,9 @@ func _setup() -> void:
 	add_child(_anchor)
 
 	if camera:
+		camera.look_ahead = Vector2(CAMERA_LOOK_AHEAD, 0.0)
 		camera.target = _qb
-		camera.global_position = _qb.global_position
+		camera.global_position = _qb.global_position + camera.look_ahead
 
 
 ## O QB sai para o lado oposto ao que o RB corta; sem corte, vai para a esquerda do ataque.
