@@ -529,6 +529,8 @@ func _stop_everything(result: String, events: Dictionary, banner: String) -> voi
 
 
 func _banner_for(result: String, events: Dictionary) -> String:
+	if events["safety"]:
+		return "SAFETY!  +2"
 	if events["touchdown"]:
 		return "TOUCHDOWN!"
 	if events["turnover"]:
@@ -762,6 +764,8 @@ func _setup(forced_kind: PlayKind = PlayKind.SCRIMMAGE) -> void:
 			play_kind = PlayKind.KICKOFF
 		GameRules.Next.EXTRA_POINT:
 			play_kind = PlayKind.EXTRA_POINT
+		GameRules.Next.FREE_KICK:
+			play_kind = PlayKind.PUNT
 	attack_dir = 1.0 if rules.possession == 0 else -1.0
 	human_side = Side.OFFENSE if rules.possession == HUMAN_TEAM else Side.DEFENSE
 	var yard_line := rules.ball_on if attack_dir > 0.0 else 100.0 - rules.ball_on
@@ -857,6 +861,8 @@ func _prompt_text() -> String:
 	match play_kind:
 		PlayKind.KICKOFF:
 			return "A: KICKOFF"
+		PlayKind.PUNT:
+			return "A: FREE KICK"
 		PlayKind.EXTRA_POINT:
 			return "A: EXTRA POINT    BAIXO+A: 2 PONTOS" if rules.conversion_open else "A: CHUTAR"
 		PlayKind.SCRIMMAGE:

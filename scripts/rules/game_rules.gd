@@ -6,7 +6,7 @@ extends RefCounted
 ## Posições em jardas a partir da goal line do PRÓPRIO time que está com a bola (1 a 99).
 ## Times: 0 = Time A, 1 = Time B.
 
-enum Next { SCRIMMAGE, KICKOFF, EXTRA_POINT, TWO_POINT }
+enum Next { SCRIMMAGE, KICKOFF, EXTRA_POINT, TWO_POINT, FREE_KICK }
 
 const QUARTER_SECONDS := 120.0
 const QUARTERS := 4
@@ -15,6 +15,9 @@ const DELAY_OF_GAME_YARDS := 5.0
 ## Timeouts por time em cada metade (renovados no 3º quarto).
 const TIMEOUTS_PER_HALF := 3
 const TOUCHDOWN_POINTS := 6
+const SAFETY_POINTS := 2
+## Depois de um safety, o time que sofreu chuta (punt livre) da própria jarda 20.
+const SAFETY_FREE_KICK_YARD := 20.0
 const FIELD_GOAL_POINTS := 3
 const KICKOFF_YARD := 35.0
 const KICKOFF_TOUCHBACK_YARD := 30.0
@@ -139,13 +142,16 @@ func end_play(outcome: String, new_spot: float) -> Dictionary:
 			clock_running = false
 			_next_down(events)
 		_:
-			ball_on = clampf(new_spot, 1.0, 99.0)
-			if ball_on >= line_to_gain:
-				down = 1
-				line_to_gain = minf(ball_on + 10.0, 100.0)
-				events["first_down"] = true
+			if new_spot <= 0.0:  # portador caído atrás da própria goal line
+				_score_safety(events)
 			else:
-				_next_down(events)
+				ball_on = clampf(new_spot, 1.0, 99.0)
+				if ball_on >= line_to_gain:
+					down = 1
+					line_to_gain = minf(ball_on + 10.0, 100.0)
+					events["first_down"] = true
+				else:
+					_next_down(events)
 	return _finish(events)
 
 
@@ -259,6 +265,8 @@ func down_and_distance() -> String:
 			return "Extra point"
 		Next.TWO_POINT:
 			return "2-pt"
+		Next.FREE_KICK:
+			return "Free kick"
 	var ordinals := ["1st", "2nd", "3rd", "4th"]
 	var dist := "Goal" if line_to_gain >= 100.0 else str(yards_to_go())
 	return "%s & %s" % [ordinals[clampi(down - 1, 0, 3)], dist]
@@ -272,7 +280,7 @@ func clock_text() -> String:
 func _new_events() -> Dictionary:
 	return {
 		"first_down": false, "turnover": false, "touchdown": false, "touchback": false,
-		"kick_good": false, "quarter_ended": false, "game_over": false,
+		"kick_good": false, "safety": false, "quarter_ended": false, "game_over": false,
 	}
 
 
@@ -283,6 +291,15 @@ func _score_touchdown(events: Dictionary) -> void:
 	start_drive(possession, EXTRA_POINT_YARD)
 	next_play = Next.EXTRA_POINT
 	conversion_open = true
+
+
+## Safety: 2 pontos para quem defende; o time que sofreu faz o punt livre da própria jarda 20.
+func _score_safety(events: Dictionary) -> void:
+	score[1 - possession] += SAFETY_POINTS
+	clock_running = false
+	events["safety"] = true
+	start_drive(possession, SAFETY_FREE_KICK_YARD)
+	next_play = Next.FREE_KICK
 
 
 func _next_down(events: Dictionary) -> void:
