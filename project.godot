@@ -6,6 +6,8 @@ config_version=5
 config/name="Total Football"
 config/features=PackedStringArray("4.7")
 
+run/main_scene="res://scenes/main.tscn"
+
 [display]
 
 window/size/viewport_width=512
