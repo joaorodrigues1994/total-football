@@ -59,3 +59,29 @@ Etapas 1–12 concluídas (11 = menu de jogadas; 12 = safety, interceptação, p
 - **Safety:** portador caído atrás da própria goal line (`new_spot <= 0` em `GameRules.end_play`) dá 2 pontos ao adversário; o time que sofreu faz um punt livre da própria jarda 20 (`Next.FREE_KICK`, tratado no `Match` como `PlayKind.PUNT`).
 - **Interceptação:** com a bola chegando ao ponto de queda, recebedor e defensor a ≤ `CATCH_RADIUS` disputam por sorteio proporcional ao atributo `receiving` (`Match._defender_wins_ball`); só o defensor perto = intercepta. `Match._intercept` troca a posse reutilizando `_start_return` (+ bloqueadores com o esquema `punt_return`). Não existe fumble.
 - **Poses de chute:** `kick` (2 quadros, one-shot, disparada em `_launch_kick`) e `hold` (holder `C1` no FG/extra point). Spritesheet agora tem as linhas block, beaten, kick, hold no fim.
+
+## IA do QB da CPU (melhorias de IA, etapa 2 — aguardando teste manual do usuário)
+- `scripts/ai/qb_brain.gd` (`QbBrain`): avalia os recebedores a cada 0,15 s (posição prevista na chegada da bola via `RouteRunner.position_after`, folga para defensores livres, distância, `receiving`), calcula pressão (defensor solto perto) e decide `WAIT / THROW / ESCAPE / SCRAMBLE`. Limiar de lançamento sobe com baixa `pass_accuracy` e cai com pressão; 1,8 s = paciência, 2,2 s = limite duro (menor com pressão). Mobilidade = (agility + speed)/2 para escapar/correr.
+- `Match._cpu_pass` chama o cérebro; `_cpu_scramble` faz o QB virar portador (corre em `_scramble_dir`); sack só vale com o QB atrás da linha de scrimmage. Humano inalterado.
+- Próximas etapas do pedido de IA: 3 (bloqueios de kickoff/punt), 4 (bloqueios na corrida), 5 (IA do RB/retornador + romper tackle por strength).
+
+## Bloqueio de retorno (melhorias de IA, etapa 3 — aguardando teste manual do usuário)
+- `kick_return`/`punt_return` ganharam `tactical` (ignora defensor que passou 24 px do retornador/ponto de queda; escolhe outro alvo), `grip_cap` 0,6 e `extra_decay` 0,03 (domínio limitado e desgastado) e duração 3,5 s. `BlockLink` tem `grip_cap`/`extra_decay`; `BlockSystem._is_relevant`.
+- `BLOCKER_HITTING_POWER` (B#) = 50, igual à cobertura (C#); única mudança de valor de atributo autorizada. Esquemas de corrida/passe inalterados (etapa 4).
+- O chutador (`K`) continua fora da cobertura bloqueada (último defensor livre).
+
+## Correções pós-etapa 3
+- Defesa humana mantém o controle durante o voo do passe e depois da recepção (`_throw` só desliga o `HumanController` quando o humano está no ataque). Antes o jogador controlado seguia com o último input.
+- Interceptação: o antigo ataque (nova defesa) recebe `DefenderAI` em `_intercept` e persegue o portador; o time que interceptou bloqueia (`punt_return`).
+- QB com a bola além da linha de scrimmage (`_qb_crossed_line`) vira corredor (`_qb_becomes_runner`): sem passe, estado RUNNING, recebedores param a rota e bloqueiam (`BlockSystem.add_blockers`), a defesa inteira o persegue. O scramble da CPU usa o mesmo caminho.
+- Campo: linha de scrimmage vermelha e de first down amarela (`Field.scrimmage_x/first_down_x`, definidas por `Match._update_field_lines`; escondidas em chutes, retornos e goal-to-go no first down).
+
+## Etapa 4 — atraso de leitura na defesa contra corrida (aguardando teste manual do usuário)
+- `Match._is_reading` / `RUN_READ_DELAY` (0,35 s): em jogadas de corrida, linebackers e secundária da CPU não perseguem durante snap e handoff e por 0,35 s depois que o RB vira portador; a linha defensiva reage na hora. Não afeta passes, retornos, `hold` do playbook nem jogadores humanos.
+- Medido com corredor que busca a faixa livre: média de ~0 jardas (tackle em ~1,6 s) → ~2,8 jardas (tackle em ~2,1 s). Tentativas de separação/faixa lateral dos defensores não mudaram as jardas e foram descartadas.
+
+## Etapa 5 — IA do portador da CPU e romper tackle (aguardando teste manual do usuário)
+- `scripts/ai/carrier_brain.gd` (`CarrierBrain`): a cada 0,1 s avalia 7 faixas (±65°) à frente, penaliza defensores no caminho (livres pesam mais que bloqueados, com previsão de 0,3 s), mantém a direção escolhida (evita zigue-zague), finta quando um defensor livre chega a 42 px (chance por `agility`) e corta de lado por 0,4 s depois da finta, mergulha a <26 px da goal line com defensor perto e prefere seguir reto para a endzone nos últimos 6 jardas. `strength` = aceita contato (menos peso no risco), `agility` = custo de desviar e chance de finta, `speed` = alcance da leitura. Usado por todo portador da CPU (RB, retornador, interceptador, QB em scramble) em `Match` (`State.RUNNING`).
+- **Romper tackle (vale para humano também):** `Match._breaks_tackle` sorteia por força: `BREAK_TACKLE_BASE` (0,15) × 2 × forte/(forte+fraco), teto `BREAK_TACKLE_MAX` 0,4. Quem rompe faz o defensor esperar `MISS_COOLDOWN` e mostra o `BreakEffect`.
+- Medido (CPU ataca, defesa BASE): média ~5 jardas por corrida, mediana ~1–5 conforme a jogada (MIDDLE é a mais generosa), com 1 TD de 60 jd a cada ~20–40 corridas.
+- Pedido de IA (etapas 1–5) concluído; falta apenas o teste manual do usuário e commit/push.

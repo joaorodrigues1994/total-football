@@ -7,6 +7,12 @@ const GRASS_B := Color("327f35")
 const ENDZONE_LEFT := Color("1f4e8c")
 const ENDZONE_RIGHT := Color("8c1f2a")
 const LINE := Color("f2f2f2")
+const SCRIMMAGE_LINE := Color("e02020")
+const FIRST_DOWN_LINE := Color("f2d230")
+
+## Posição x (px) das linhas de scrimmage e de first down; negativo = escondida. Definidas pela partida.
+var scrimmage_x := -1.0
+var first_down_x := -1.0
 
 var _grass_noise: Texture2D = load("res://assets/field/grass_noise.png")
 
@@ -46,6 +52,11 @@ func _draw() -> void:
 			for y in [h * 0.2, h * 0.85]:
 				var at := _p(cx, x, y)
 				draw_string(font, Vector2(at.x - size.x / 2.0, at.y), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, LINE)
+
+	# Linha de scrimmage (vermelha) e de first down (amarela).
+	for marker in [[first_down_x, FIRST_DOWN_LINE], [scrimmage_x, SCRIMMAGE_LINE]]:
+		if marker[0] >= 0.0:
+			draw_line(_p(cx, marker[0], 0.0), _p(cx, marker[0], h), marker[1], 3.0)
 
 	# Hash marks.
 	for yl in range(1, 100):

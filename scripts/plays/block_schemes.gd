@@ -10,7 +10,8 @@ extends RefCounted
 ##   duration - tempo máximo (s) segurando o bloqueio depois do contato
 ##   drive    - para onde empurra o defensor enquanto domina o bloqueio (ZERO = só segura)
 ## Esquema de retorno ("rank_match"): cada bloqueador pega o jogador da cobertura na mesma
-## ordem lateral; "away" empurra o defensor para fora do corredor do retornador.
+## ordem lateral. "tactical" ignora quem já ficou atrás do retornador; "grip_cap"/"extra_decay" limitam
+## e desgastam o domínio do bloqueio (o jogador da cobertura acaba se soltando).
 
 const SCHEMES := {
 	# Corrida pelo meio: guards abrem o buraco, C e TE avançam sobre os linebackers.
@@ -65,6 +66,6 @@ const SCHEMES := {
 		"RT": {"target": ["RDE"], "start": 0.0, "duration": 7.0, "drive": Vector2.ZERO},
 	}},
 	# Retornos: barreira à frente do retornador; cada bloqueador marca um jogador da cobertura.
-	"kick_return": {"rank_match": true, "start": 0.0, "duration": 8.0, "drive": Vector2.ZERO},
-	"punt_return": {"rank_match": true, "start": 0.0, "duration": 8.0, "drive": Vector2.ZERO},
+	"kick_return": {"rank_match": true, "tactical": true, "grip_cap": 0.6, "extra_decay": 0.03, "start": 0.0, "duration": 3.5, "drive": Vector2.ZERO},
+	"punt_return": {"rank_match": true, "tactical": true, "grip_cap": 0.6, "extra_decay": 0.03, "start": 0.0, "duration": 3.5, "drive": Vector2.ZERO},
 }

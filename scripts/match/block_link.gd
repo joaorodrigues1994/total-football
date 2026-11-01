@@ -19,6 +19,9 @@ var contest_timer := 0.0
 var held := 0.0
 var recover_time := 0.0
 var retarget_timer := 0.0
+## Teto e desgaste extra do domínio (retornos): ninguém segura a cobertura indefinidamente.
+var grip_cap := 1.0
+var extra_decay := 0.0
 
 
 func set_state(new_state: State) -> void:

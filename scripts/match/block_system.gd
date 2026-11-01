@@ -31,6 +31,8 @@ const RELEASE_RECOVER_TIME := 0.15
 const FREE_TIME := 1.2
 const RETARGET_RANGE := 160.0
 const RETARGET_INTERVAL := 0.25
+## Retornos: defensor que passou do retornador por mais que isto deixa de ser alvo relevante.
+const RELEVANCE_BEHIND := 24.0
 
 ## Ponto que o bloqueio protege (portador, QB ou ponto de queda do chute); definido pela partida.
 var protect_fn: Callable
@@ -41,6 +43,8 @@ var breaks := 0
 var releases := 0
 
 var _defenders: Array[Player] = []
+var _dir := 1.0
+var _tactical := false
 var _free_t: Dictionary = {}  # defensor -> tempo restante sem poder ser bloqueado
 var _rng := RandomNumberGenerator.new()
 
@@ -62,13 +66,17 @@ func begin(scheme_id: String, blockers: Array[Player], defenders: Array[Player],
 		mirror := false) -> void:
 	clear()
 	_defenders = defenders
+	_dir = dir
 	var scheme: Dictionary = BlockSchemes.SCHEMES[scheme_id]
+	_tactical = scheme.get("tactical", false)
 	if scheme.get("rank_match", false):
 		var mine := _sorted_by_lane(blockers)
 		var theirs := _sorted_by_lane(defenders)
 		for i in mine.size():
 			_add(mine[i], theirs[i] if i < theirs.size() else null,
 					scheme["start"], scheme["duration"], scheme["drive"])
+			links[-1].grip_cap = scheme.get("grip_cap", 1.0)
+			links[-1].extra_decay = scheme.get("extra_decay", 0.0)
 	else:
 		var taken: Array[Player] = []
 		for blocker in blockers:
@@ -84,6 +92,12 @@ func begin(scheme_id: String, blockers: Array[Player], defenders: Array[Player],
 			taken.append(target)
 			_add(blocker, target, spec["start"], spec["duration"], Vector2(drive.x * dir, drive.y))
 	active = true
+
+
+## Bloqueadores extras no meio da jogada (ex.: QB cruzou a linha): cada um procura o defensor livre mais próximo.
+func add_blockers(blockers: Array[Player], duration: float) -> void:
+	for b in blockers:
+		_add(b, null, 0.0, duration, Vector2.ZERO)
 
 
 func clear() -> void:
@@ -149,7 +163,7 @@ func _step(link: BlockLink, protect: Vector2, delta: float) -> void:
 			b.block_pose = "block"
 			d.speed_scale = ENGAGE_SLOW
 			if link.time_in_state >= ENGAGE_TIME:
-				link.grip = START_GRIP + clampf(_edge(b, d), -MAX_EDGE, MAX_EDGE) * START_GRIP_PER_POINT
+				link.grip = minf(START_GRIP + clampf(_edge(b, d), -MAX_EDGE, MAX_EDGE) * START_GRIP_PER_POINT, link.grip_cap)
 				link.contest_timer = 0.0
 				link.set_state(_state_for_grip(link.grip))
 		BlockLink.State.BLOCKING, BlockLink.State.FIGHTING_BLOCK, BlockLink.State.LOSING_BLOCK:
@@ -172,13 +186,13 @@ func _step(link: BlockLink, protect: Vector2, delta: float) -> void:
 
 func _move_to_target(link: BlockLink, protect: Vector2, delta: float) -> void:
 	var b := link.blocker
-	var touched := _touching_defender(link)
+	var touched := _touching_defender(link, protect)
 	if touched != null:  # encostou em um defensor: engaja, mesmo que não fosse o alvo do esquema
 		link.defender = touched
 		link.set_state(BlockLink.State.ENGAGING)
 		return
 	var d := link.defender
-	if _valid_target(d) and _is_engaged_by_other(d, link):
+	if _valid_target(d) and (_is_engaged_by_other(d, link) or not _is_relevant(d, protect)):
 		link.defender = null
 		d = null
 	if link.delay > 0.0:
@@ -191,7 +205,7 @@ func _move_to_target(link: BlockLink, protect: Vector2, delta: float) -> void:
 		b.input_dir = Vector2.ZERO
 		if link.retarget_timer <= 0.0:
 			link.retarget_timer = RETARGET_INTERVAL
-			link.defender = _pick_free(link, b.global_position)
+			link.defender = _pick_free(link, b.global_position, protect)
 			link.time_in_state = 0.0
 		return
 	if b.global_position.distance_to(d.global_position) <= ENGAGE_DISTANCE:
@@ -216,7 +230,8 @@ func _hold(link: BlockLink, protect: Vector2, delta: float) -> void:
 	link.contest_timer += delta
 	if link.contest_timer >= CONTEST_INTERVAL:
 		link.contest_timer = 0.0
-		link.grip += clampf(_edge(b, d), -MAX_EDGE, MAX_EDGE) * GRIP_PER_POINT - GRIP_DECAY
+		link.grip += clampf(_edge(b, d), -MAX_EDGE, MAX_EDGE) * GRIP_PER_POINT - GRIP_DECAY - link.extra_decay
+		link.grip = minf(link.grip, link.grip_cap)
 		if link.grip <= 0.0:
 			_break(link)
 			return
@@ -332,10 +347,10 @@ func _pick_target(roles: Array, blocker: Player, taken: Array[Player]) -> Player
 
 
 ## Defensor que o bloqueador está encostando e que pode ser engajado.
-func _touching_defender(link: BlockLink) -> Player:
+func _touching_defender(link: BlockLink, protect: Vector2) -> Player:
 	var free: Array[Player] = []
 	for d in _defenders:
-		if _valid_target(d) and not _free_t.has(d) and not _is_engaged_by_other(d, link):
+		if _valid_target(d) and not _free_t.has(d) and not _is_engaged_by_other(d, link) and _is_relevant(d, protect):
 			free.append(d)
 	return _nearest(free, link.blocker.global_position, ENGAGE_DISTANCE)
 
@@ -348,12 +363,17 @@ func _is_engaged_by_other(d: Player, except: BlockLink) -> bool:
 
 
 ## Defensor livre mais próximo: não derrubado, não solto há pouco e sem outro bloqueador.
-func _pick_free(link: BlockLink, from: Vector2) -> Player:
+func _pick_free(link: BlockLink, from: Vector2, protect: Vector2) -> Player:
 	var free: Array[Player] = []
 	for d in _defenders:
-		if _valid_target(d) and not _free_t.has(d) and not _is_taken(d, link):
+		if _valid_target(d) and not _free_t.has(d) and not _is_taken(d, link) and _is_relevant(d, protect):
 			free.append(d)
 	return _nearest(free, from, RETARGET_RANGE)
+
+
+## Nos retornos, só importa quem ainda está à frente do retornador (ou do ponto de queda).
+func _is_relevant(d: Player, protect: Vector2) -> bool:
+	return not _tactical or (d.global_position.x - protect.x) * _dir > -RELEVANCE_BEHIND
 
 
 func _is_taken(d: Player, except: BlockLink) -> bool:

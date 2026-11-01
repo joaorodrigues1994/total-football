@@ -26,8 +26,13 @@ const CATCH_RADIUS := 20.0
 const KICK_CATCH_RADIUS := 30.0
 ## Contato (corpos se tocam a 14 px) que derruba o portador.
 const TACKLE_RADIUS := 16.0
+## Atraso (s) depois do handoff para linebackers e secundária começarem a perseguir numa corrida.
+const RUN_READ_DELAY := 0.35
 ## Depois de errar o tackle (portador em juke) o defensor não tenta de novo por este tempo.
 const MISS_COOLDOWN := 0.6
+## Chance de o portador romper um tackle (força igual) e teto; sobe com a força do portador contra a do defensor.
+const BREAK_TACKLE_BASE := 0.15
+const BREAK_TACKLE_MAX := 0.4
 const GET_UP_TIME := 0.8
 ## Na defesa a CPU dá o snap/chute depois deste tempo (janela para trocar de jogador com A).
 const DEFENSE_SNAP_DELAY := 5.0
@@ -39,7 +44,6 @@ const MESSAGE_TIME := 2.5
 ## O ataque fica deslocado para o seu lado da tela, mostrando mais campo à frente.
 const CAMERA_LOOK_AHEAD := 170.0
 ## A CPU no ataque lança depois de ficar este tempo com a bola no bolso.
-const CPU_THROW_DELAY := 1.8
 ## Margem mínima (px) entre o QB e a borda da tela durante o passe.
 const CAMERA_QB_MARGIN := 50.0
 
@@ -80,6 +84,9 @@ var _def_choice := {}
 var _human_key := ""
 var _human_kick := ""
 var _cpu_throw_time := 0.0
+var _qb_brain := QbBrain.new()
+var _scramble_dir := Vector2.ZERO  # corredor escolhido pelo QB da CPU que fugiu do bolso
+var _carrier_brain := CarrierBrain.new()
 var _runners: Array[RouteRunner] = []
 var _target_index := 0
 var _defense_index := 0
@@ -94,6 +101,7 @@ var _kick_landing := Vector2.ZERO
 var _kick_landing_spot := 0.0
 var _kick_good := false
 var _in_return := false
+var _running_time := 0.0  # tempo desde que alguém virou portador (atraso de leitura da defesa)
 var _snap_progress := 0.0
 var _snap_from := Vector2.ZERO
 var _clear_time := 0.0
@@ -157,17 +165,22 @@ func _physics_process(delta: float) -> void:
 						_controller.controlled = _qb
 						_controller.enabled = true
 					_cpu_throw_time = 0.0
+					_qb_brain.reset()
 					state = State.PASSING
 		State.PASSING:
 			_ball.world_pos = _hands(_qb)
 			_frame_pass()
 			_pass_inputs()
-			_cpu_pass(delta)
+			if _qb_crossed_line():
+				_qb_becomes_runner()
+			else:
+				_cpu_pass(delta)
 		State.FLIGHT:
 			_update_flight(delta)
 		State.KICK_FLIGHT:
 			_update_kick_flight(delta)
 		State.RUNNING:
+			_running_time += delta
 			_ball.world_pos = _hands(_carrier)
 			_clear_qb(delta)
 			if human_side == Side.OFFENSE:
@@ -176,7 +189,13 @@ func _physics_process(delta: float) -> void:
 				if Input.is_action_just_pressed("btn_d"):
 					_carrier.try_dive()
 			elif _carrier.action != Player.Action.DOWN:
-				_carrier.input_dir = Vector2(attack_dir, 0.0)  # CPU: corre reto para a frente
+				var move := _carrier_brain.think(delta, _carrier, defense, _block_system, attack_dir,
+						FieldConstants.yard_line_to_x(100.0 if attack_dir > 0.0 else 0.0))
+				_carrier.input_dir = move["dir"]
+				if move["juke"]:
+					_carrier.try_juke()
+				if move["dive"]:
+					_carrier.try_dive()
 		State.DEAD:
 			if _carrier:
 				_ball.world_pos = _hands(_carrier)
@@ -194,6 +213,7 @@ func _physics_process(delta: float) -> void:
 	var banner := _message if _message_time > 0.0 else (_prompt if state == State.PRE_SNAP else "")
 	_hud.show_rules(rules, banner)
 	_refresh_menu()
+	_update_field_lines()
 
 
 ## O retornador do humano corre sozinho até o ponto de queda enquanto a bola está no ar.
@@ -365,6 +385,7 @@ func _start_play() -> void:
 	var is_pass: bool = play_kind == PlayKind.SCRIMMAGE and offense_play["type"] == "pass"
 	play_type = PlayType.PASS if is_pass else PlayType.RUN
 	_snap_progress = 0.0
+	_scramble_dir = Vector2.ZERO
 	_snap_from = _ball.world_pos
 	if human_side == Side.DEFENSE:
 		_controller.enabled = true  # a troca de jogador fica travada a partir do snap
@@ -395,6 +416,20 @@ func _start_play() -> void:
 				_launch_kick()
 
 
+## Linha de scrimmage (vermelha) e de first down (amarela) só em jogadas de scrimmage.
+func _update_field_lines() -> void:
+	var field := get_parent().get_node_or_null("Field")
+	if field == null:
+		return
+	var show_lines := play_kind == PlayKind.SCRIMMAGE and not _in_return and not rules.game_over
+	field.scrimmage_x = scrimmage_spot.x if show_lines else -1.0
+	var ltg := rules.line_to_gain
+	if show_lines and ltg < 100.0:
+		field.first_down_x = FieldConstants.yard_line_to_x(ltg if attack_dir > 0.0 else 100.0 - ltg)
+	else:
+		field.first_down_x = -1.0
+
+
 func _snap_target() -> Player:
 	return _qb if play_kind == PlayKind.SCRIMMAGE else _kicker
 
@@ -408,6 +443,8 @@ func defender_target(player: Player) -> Variant:
 				return _kick_landing  # retornador vai ao ponto de queda; cobertura corre atrás da bola
 		return null
 	var strategy := defense_play if not defense_play.is_empty() else Playbook.defense_play("up", false)
+	if player in defense and _is_reading(player):
+		return null
 	match state:
 		State.SNAP, State.HANDOFF, State.DROPBACK, State.PASSING:
 			if player not in defense:
@@ -425,6 +462,16 @@ func defender_target(player: Player) -> Variant:
 			if player in defense:
 				return null if _is_holding(player, strategy) else _carrier.global_position
 	return null
+
+
+## Contra corrida: linebackers e secundária leem a jogada (snap e handoff + um instante) antes de perseguir.
+## A linha defensiva reage na hora; o atraso só vale para a CPU em jogadas de corrida.
+func _is_reading(player: Player) -> bool:
+	if play_type != PlayType.RUN or play_kind != PlayKind.SCRIMMAGE or _in_return:
+		return false
+	if player.role in Playbook.DEFENSE_LINE:
+		return false
+	return state in [State.SNAP, State.HANDOFF] or (state == State.RUNNING and _running_time < RUN_READ_DELAY)
 
 
 ## Contra corrida: quem está em "hold" espera o portador cruzar a linha de scrimmage.
@@ -476,12 +523,27 @@ func _check_tackles() -> void:
 		if _carrier.is_juking():
 			d.tackle_cooldown = MISS_COOLDOWN
 			continue
+		if _breaks_tackle(_carrier, d):
+			d.tackle_cooldown = MISS_COOLDOWN
+			var fx := BreakEffect.new()
+			fx.world_pos = _carrier.global_position
+			add_child(fx)
+			continue
 		_tackle(d)
 		return
 
 
+## Sorteio portador x defensor por força: com forças iguais, BREAK_TACKLE_BASE de chance de escapar.
+func _breaks_tackle(carrier: Player, defender: Player) -> bool:
+	var c := float(carrier.attributes.strength)
+	var d := float(defender.attributes.strength)
+	var chance := minf(BREAK_TACKLE_BASE * 2.0 * c / (c + d), BREAK_TACKLE_MAX)
+	return rules.rng.randf() < chance
+
+
 func _tackle(defender: Player) -> void:
-	var sack := _carrier == _qb and play_type == PlayType.PASS
+	var sack := _carrier == _qb and play_type == PlayType.PASS \
+			and (_qb.global_position.x - scrimmage_spot.x) * attack_dir <= 0.0  # scramble além da linha é corrida
 	defender.facing = (_carrier.global_position - defender.global_position).normalized()
 	defender.knock_down(GET_UP_TIME)
 	var downed_carrier := _carrier
@@ -583,24 +645,45 @@ func _pass_inputs() -> void:
 		_throw()
 
 
-## CPU no ataque: depois de um tempo no bolso, lança para o recebedor mais livre.
+## Regra: com a bola na mão do QB além da linha de scrimmage, não há mais passe.
+func _qb_crossed_line() -> bool:
+	return _carrier == _qb and (_qb.global_position.x - scrimmage_spot.x) * attack_dir > 0.0
+
+
+## O QB virou corredor: os recebedores desistem das rotas e bloqueiam, a defesa inteira vai atrás dele.
+func _qb_becomes_runner() -> void:
+	var blockers: Array[Player] = []
+	for i in _receivers.size():
+		_runners[i].stop()
+		_receivers[i].is_pass_target = false
+		blockers.append(_receivers[i])
+	_block_system.add_blockers(blockers, 6.0)
+	_take_control(_qb)
+
+
+## CPU no ataque: o QB decide (QbBrain) entre lançar, esperar, escapar da pressão ou correr.
 func _cpu_pass(delta: float) -> void:
 	if human_side == Side.OFFENSE:
 		return
 	_cpu_throw_time += delta
-	if _cpu_throw_time < CPU_THROW_DELAY:
-		return
-	var best := 0
-	var best_gap := -1.0
-	for i in _receivers.size():
-		var gap := INF
-		for d in defense:
-			gap = minf(gap, d.global_position.distance_to(_receivers[i].global_position))
-		if gap > best_gap:
-			best_gap = gap
-			best = i
-	_set_target(best)
-	_throw()
+	var decision := _qb_brain.think(delta, _qb, _receivers, _runners, defense, _block_system, attack_dir)
+	_set_target(decision.get("index", 0))
+	match decision["action"]:
+		QbBrain.Action.THROW:
+			_throw()
+		QbBrain.Action.ESCAPE:
+			_qb.input_dir = decision["dir"]
+		QbBrain.Action.SCRAMBLE:
+			_cpu_scramble(decision["scramble_dir"])
+		_:
+			_qb.input_dir = Vector2.ZERO
+
+
+## QB da CPU sem passe e com espaço: vira portador e corre para a frente como numa corrida normal.
+func _cpu_scramble(lane: Vector2) -> void:
+	_scramble_dir = lane
+	_qb.input_dir = lane
+	_qb_becomes_runner()
 
 
 func _set_target(index: int) -> void:
@@ -621,7 +704,8 @@ func _throw() -> void:
 	aim.y = clampf(aim.y, 0.0, FieldConstants.yards_to_px(FieldConstants.WIDTH_YARDS))
 	_flight = PassFlight.new(from, aim, t, minf(40.0, from.distance_to(aim) * 0.25))
 	_qb.input_dir = Vector2.ZERO
-	_controller.enabled = false
+	if human_side == Side.OFFENSE:  # defesa humana segue controlando o jogador durante o voo e depois da recepção
+		_controller.enabled = false
 	_carrier = null
 	_anchor.global_position = from
 	camera.look_ahead.x = attack_dir * CAMERA_LOOK_AHEAD
@@ -669,6 +753,11 @@ func _intercept(interceptor: Player) -> void:
 		if p != interceptor:
 			blockers.append(p)
 	_block_system.begin("punt_return", blockers, defense, attack_dir)
+	for p in defense:  # o antigo ataque agora persegue o portador (só a defesa original tinha IA)
+		if not p.get_children().any(func(c: Node) -> bool: return c is DefenderAI):
+			var ai := DefenderAI.new()
+			ai.match = self
+			p.add_child(ai)
 
 
 ## Chute (punt, kickoff, field goal ou extra point): a bola voa até o ponto de queda ou até as traves.
@@ -764,6 +853,8 @@ func _nearest_of(players: Array[Player], spot: Vector2, max_dist: float) -> Play
 ## O jogador passa a ser o portador. Com o humano no ataque, ele também passa a controlá-lo.
 func _take_control(player: Player) -> void:
 	_carrier = player
+	_running_time = 0.0
+	_carrier_brain.reset(_scramble_dir if player == _qb else Vector2.ZERO)
 	player.pose = ""
 	if human_side == Side.OFFENSE:
 		_controller.controlled = player

@@ -20,7 +20,7 @@ const BASE_HITTING_POWER := {
 	"LCB": 40, "RCB": 40, "FS": 40, "SS": 40, "K": 35, "R": 45,
 }
 const COVER_HITTING_POWER := 50
-const BLOCKER_HITTING_POWER := 60
+const BLOCKER_HITTING_POWER := 50
 
 
 ## Velocidade máxima em jardas/segundo.
