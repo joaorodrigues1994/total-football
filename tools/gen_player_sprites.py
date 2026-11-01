@@ -9,8 +9,9 @@ S = 24
 OUT = (16, 16, 24, 255)
 SKIN = (224, 160, 112, 255)
 WHITE = (236, 236, 240, 255)
-WHITE_D = (178, 178, 192, 255)
-MASK = (205, 205, 215, 255)
+GRAY = (170, 172, 186, 255)
+GRAY_D = (124, 126, 142, 255)
+MASK_D = (72, 72, 86, 255)
 SHOE = (34, 34, 44, 255)
 
 TEAMS = {"a": (31, 78, 140), "b": (140, 31, 42)}
@@ -26,6 +27,12 @@ class Canvas:
                 if 0 <= x < S and 0 <= y < S:
                     self.p[y][x] = c
 
+    def ellipse(self, cx, cy, rx, ry, c):
+        for y in range(S):
+            for x in range(S):
+                if ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1:
+                    self.p[y][x] = c
+
     def outline(self):
         src = [row[:] for row in self.p]
         for y in range(S):
@@ -39,60 +46,69 @@ class Canvas:
 
 
 def palette(main):
-    light = tuple(min(255, v + 55) for v in main) + (255,)
+    light = tuple(min(255, v + 70) for v in main) + (255,)
     dark = tuple(max(0, v - 40) for v in main) + (255,)
     return main + (255,), light, dark
 
 
-def legs(c, frame, moving, view):
-    dx = [3, 0, -3, 0][frame % 4] if moving else (1 if frame % 2 == 0 else 1)
+def legs(c, frame, moving, view, b):
+    dx = [3, 0, -3, 0][frame % 4] if moving else 1
     lift_a = 1 if moving and frame % 4 == 1 else 0
     lift_b = 1 if moving and frame % 4 == 3 else 0
     if view == "side":
-        for x, lift in ((12 + dx, lift_a), (12 - dx, lift_b)):
-            c.rect(x, 16, x + 1, 19 - lift, WHITE if lift_a == lift else WHITE_D)
-            c.rect(x, 20 - lift, x + 2, 21 - lift, SHOE)
+        spots = ((12 + dx, lift_a), (12 - dx, lift_b))
     else:
-        for x, lift in ((8, lift_a), (13, lift_b)):
-            c.rect(x, 16, x + 2, 19 - lift, WHITE)
-            c.rect(x, 20 - lift, x + 2, 21 - lift, SHOE)
+        spots = ((8, lift_a), (13, lift_b))
+    for x, lift in spots:
+        w = 2 if view == "side" else 3
+        c.rect(x, 15 - b, x + w - 1, 18 - lift, GRAY)
+        c.rect(x, 18 - lift, x, 18 - lift, GRAY_D)
+        c.rect(x, 19 - lift, x + w - 1, 20 - lift, WHITE)
+        c.rect(x, 21 - lift, x + w, 21 - lift, SHOE)
 
 
 def draw(view, frame, moving, main):
     m, light, dark = palette(main)
     c = Canvas()
-    b = 1 if frame % 2 == 1 and (moving or True) and (moving or frame == 1) else 0
-    legs(c, frame, moving, view)
-    swing = [2, 0, -2, 0][frame % 4] if moving else 0
+    b = 1 if frame % 2 == 1 else 0
+    legs(c, frame, moving, view, b)
+    swing = [1, 0, -1, 0][frame % 4] if moving else 0
     if view == "side":
-        c.rect(9, 9 - b, 15, 15 - b, m)
-        c.rect(9, 15 - b, 15, 15 - b, dark)
-        c.rect(11, 11 - b, 12, 13 - b, WHITE)
-        c.rect(11 + swing, 10 - b, 12 + swing, 13 - b, light)
-        c.rect(11 + swing, 14 - b, 12 + swing, 14 - b, SKIN)
-        c.rect(9, 3 - b, 15, 8 - b, m)
-        c.rect(9, 3 - b, 15, 3 - b, light)
-        c.rect(13, 6 - b, 15, 8 - b, SKIN)
-        c.rect(14, 7 - b, 16, 7 - b, MASK)
-        c.rect(14, 9 - b, 16, 9 - b, MASK)
+        c.rect(8, 10 - b, 15, 15 - b, m)
+        c.rect(8, 15 - b, 15, 15 - b, dark)
+        c.rect(10, 12 - b, 12, 13 - b, WHITE)
+        c.rect(10 + swing * 2, 11 - b, 11 + swing * 2, 12 - b, m)
+        c.rect(10 + swing * 2, 13 - b, 11 + swing * 2, 14 - b, SKIN)
+        c.ellipse(13, 6 - b, 5, 4.5, m)
+        c.rect(10, 3 - b, 12, 3 - b, light)
+        c.rect(9, 4 - b, 9, 4 - b, light)
+        c.rect(15, 7 - b, 16, 8 - b, SKIN)
+        c.rect(16, 7 - b, 17, 10 - b, MASK_D)
+        c.rect(12, 7 - b, 12, 8 - b, dark)
     else:
-        c.rect(7, 9 - b, 16, 15 - b, m)
-        c.rect(7, 15 - b, 16, 15 - b, dark)
-        c.rect(5, 10 - b + (swing > 0), 6, 13 - b, light)
-        c.rect(17, 10 - b + (swing < 0), 18, 13 - b, light)
-        c.rect(5, 14 - b, 6, 14 - b, SKIN)
-        c.rect(17, 14 - b, 18, 14 - b, SKIN)
-        c.rect(8, 2 - b, 15, 8 - b, m)
-        c.rect(8, 2 - b, 15, 2 - b, light)
+        c.rect(6, 10 - b, 17, 14 - b, m)
+        for x, y in ((6, 10), (17, 10)):
+            c.p[y - b][x] = None
+        c.rect(6, 14 - b, 17, 14 - b, dark)
+        l, r = (1 if swing > 0 else 0), (1 if swing < 0 else 0)
+        c.rect(4, 11 - b + l, 5, 12 - b + l, m)
+        c.rect(4, 13 - b + l, 5, 15 - b + l, SKIN)
+        c.rect(18, 11 - b + r, 19, 12 - b + r, m)
+        c.rect(18, 13 - b + r, 19, 15 - b + r, SKIN)
+        c.ellipse(11.5, 6 - b, 5.5, 4.5, m)
+        c.rect(8, 3 - b, 10, 3 - b, light)
+        c.rect(7, 4 - b, 7, 4 - b, light)
+        c.rect(11, 2 - b, 12, 5 - b, WHITE)
         if view == "down":
-            c.rect(10, 11 - b, 13, 12 - b, WHITE)
-            c.rect(9, 6 - b, 14, 8 - b, SKIN)
-            c.rect(9, 7 - b, 14, 7 - b, MASK)
-            c.rect(9, 9 - b, 14, 9 - b, MASK)
-            c.rect(11, 2 - b, 12, 5 - b, WHITE)
+            c.rect(8, 7 - b, 15, 8 - b, SKIN)
+            c.rect(7, 9 - b, 16, 9 - b, MASK_D)
+            c.rect(11, 7 - b, 12, 9 - b, MASK_D)
+            c.rect(9, 8 - b, 9, 8 - b, OUT)
+            c.rect(14, 8 - b, 14, 8 - b, OUT)
+            c.rect(9, 11 - b, 14, 12 - b, WHITE)
         else:
-            c.rect(10, 11 - b, 13, 13 - b, WHITE)
-            c.rect(11, 2 - b, 12, 5 - b, light)
+            c.rect(9, 11 - b, 14, 13 - b, WHITE)
+            c.rect(11, 11 - b, 12, 13 - b, dark)
     c.outline()
     return c
 

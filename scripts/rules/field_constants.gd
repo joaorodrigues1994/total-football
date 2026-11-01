@@ -5,7 +5,7 @@ extends RefCounted
 const ENDZONE_YARDS := 10.0
 const PLAYING_YARDS := 100.0
 const TOTAL_YARDS := PLAYING_YARDS + ENDZONE_YARDS * 2.0
-const WIDTH_YARDS := 53.333
+const WIDTH_YARDS := 36.0
 
 const PX_PER_YARD := 12.0
 
