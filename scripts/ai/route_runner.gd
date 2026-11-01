@@ -12,7 +12,7 @@ var _index := 0
 func start(waypoints: Array, origin: Vector2, direction: float) -> void:
 	_points.clear()
 	for wp in waypoints:
-		_points.append(origin + Vector2(wp.x * direction, wp.y) * FieldConstants.PX_PER_YARD)
+		_points.append(origin + Vector2(wp.x, wp.y) * direction * FieldConstants.PX_PER_YARD)
 	_index = 0
 	active = true
 

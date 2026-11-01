@@ -1,11 +1,13 @@
 class_name Match
 extends Node2D
-## Monta a partida e conduz a jogada: formação, snap, corrida (handoff), passe e tackles.
+## Monta a partida e conduz a jogada: formação, snap, corrida (handoff), passe, tackles e regras.
 
 enum State { PRE_SNAP, SNAP, HANDOFF, DROPBACK, PASSING, FLIGHT, RUNNING, DEAD }
 enum PlayType { RUN, PASS }
 enum Side { OFFENSE, DEFENSE }
 
+## O humano controla o Time A.
+const HUMAN_TEAM := 0
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const STANCE_ROLES := ["LT", "LG", "C", "RG", "RT", "TE", "LDE", "LDT", "RDT", "RDE"]
 const START_ROLES := ["WR1", "WR2", "WR3"]
@@ -25,25 +27,30 @@ const MISS_COOLDOWN := 0.6
 const GET_UP_TIME := 0.8
 ## Na defesa a CPU dá o snap depois deste tempo (janela para trocar de defensor com A).
 const DEFENSE_SNAP_DELAY := 5.0
-## O ataque (virado para a direita) fica deslocado para a esquerda da tela, mostrando mais campo à frente.
+## Pausa entre o fim da jogada e a formação seguinte.
+const NEXT_PLAY_DELAY := 1.5
+const MESSAGE_TIME := 2.5
+## O ataque fica deslocado para o seu lado da tela, mostrando mais campo à frente.
 const CAMERA_LOOK_AHEAD := 170.0
 ## Margem mínima (px) entre o QB e a borda da tela durante o passe.
 const CAMERA_QB_MARGIN := 50.0
 
 @export var camera: MatchCamera
-## Linha de jarda da bola (0 = goal line esquerda, 100 = direita).
-@export var scrimmage_yard_line := 50.0
 
+var rules := GameRules.new()
 var state := State.PRE_SNAP
 var play_type := PlayType.RUN
-## Lado controlado pelo humano. TEMPORÁRIO: alterna com a tecla T até existir posse alternada.
+## Lado controlado pelo humano, definido pela posse de bola.
 var human_side := Side.OFFENSE
+## Direção de ataque do time com a bola: +1 = para a direita, -1 = para a esquerda.
+var attack_dir := 1.0
 var play_result := ""
 var offense: Array[Player] = []
 var defense: Array[Player] = []
 var scrimmage_spot := Vector2.ZERO
 
 var _controller: HumanController
+var _hud := DebugHud.new()
 var _ball: Ball
 var _anchor: Node2D
 var _qb: Player
@@ -54,6 +61,9 @@ var _runners: Array[RouteRunner] = []
 var _target_index := 0
 var _defense_index := 0
 var _presnap_time := 0.0
+var _dead_time := 0.0
+var _message := ""
+var _message_time := 0.0
 var _flight: PassFlight
 var _snap_progress := 0.0
 var _snap_from := Vector2.ZERO
@@ -64,9 +74,7 @@ var _dropback_x := 0.0
 
 func _ready() -> void:
 	InputSetup.ensure()
-	scrimmage_spot = Vector2(
-			FieldConstants.yard_line_to_x(scrimmage_yard_line),
-			FieldConstants.yards_to_px(FieldConstants.WIDTH_YARDS) / 2.0)
+	add_child(_hud)
 	_setup()
 
 
@@ -75,7 +83,11 @@ func _physics_process(delta: float) -> void:
 		_setup()
 		return
 	if Input.is_action_just_pressed("debug_swap_side") and state == State.PRE_SNAP:  # TEMPORÁRIO
-		human_side = Side.DEFENSE if human_side == Side.OFFENSE else Side.OFFENSE
+		rules.flip_possession_same_spot()
+		_setup()
+		return
+	if rules.tick(delta):  # quarto acabou entre jogadas
+		_show_message("END OF QUARTER")
 		_setup()
 		return
 	match state:
@@ -87,7 +99,7 @@ func _physics_process(delta: float) -> void:
 			if _snap_progress >= 1.0:
 				_carrier = _qb
 				state = State.HANDOFF if play_type == PlayType.RUN else State.DROPBACK
-				_dropback_x = _qb.global_position.x - FieldConstants.yards_to_px(DROPBACK_YARDS)
+				_dropback_x = _qb.global_position.x - attack_dir * FieldConstants.yards_to_px(DROPBACK_YARDS)
 		State.HANDOFF:
 			_update_handoff()
 		State.DROPBACK:
@@ -95,10 +107,10 @@ func _physics_process(delta: float) -> void:
 			_frame_pass()
 			_pass_inputs()
 			if state == State.DROPBACK:
-				_qb.input_dir = Vector2.LEFT
-				if _qb.global_position.x <= _dropback_x:
+				_qb.input_dir = Vector2(-attack_dir, 0.0)
+				if (_qb.global_position.x - _dropback_x) * attack_dir <= 0.0:
 					_qb.input_dir = Vector2.ZERO
-					_qb.facing = Vector2.RIGHT
+					_qb.facing = Vector2(attack_dir, 0.0)
 					_controller.controlled = _qb
 					_controller.enabled = true
 					state = State.PASSING
@@ -117,19 +129,29 @@ func _physics_process(delta: float) -> void:
 				if Input.is_action_just_pressed("btn_d"):
 					_carrier.try_dive()
 			elif _carrier.action != Player.Action.DOWN:
-				_carrier.input_dir = Vector2.RIGHT  # CPU: corre reto para a frente
+				_carrier.input_dir = Vector2(attack_dir, 0.0)  # CPU: corre reto para a frente
 		State.DEAD:
 			if _carrier:
 				_ball.world_pos = _hands(_carrier)
 			_clear_qb(delta)
+			_dead_time += delta
+			if _dead_time >= NEXT_PLAY_DELAY and not rules.game_over:
+				_setup()
+				return
+	if state in [State.HANDOFF, State.DROPBACK, State.PASSING, State.RUNNING]:
+		_check_touchdown()
 	if state in [State.HANDOFF, State.DROPBACK, State.PASSING, State.RUNNING]:
 		_check_tackles()
 	if human_side == Side.DEFENSE:
 		_anchor.global_position = _ball.world_pos
+	_message_time = maxf(_message_time - delta, 0.0)
+	_hud.show_rules(rules, _message if _message_time > 0.0 else "")
 
 
 ## Ataque: A dá o snap (Esquerda + A = passe). Defesa: A troca de defensor e a CPU dá o snap.
 func _update_pre_snap(delta: float) -> void:
+	if rules.game_over:
+		return
 	if human_side == Side.OFFENSE:
 		if Input.is_action_just_pressed("btn_a"):
 			_start_play()
@@ -145,6 +167,7 @@ func _update_pre_snap(delta: float) -> void:
 func _start_play() -> void:
 	var is_pass := human_side == Side.OFFENSE and Input.is_action_pressed("ui_left")
 	play_type = PlayType.PASS if is_pass else PlayType.RUN
+	rules.snap()
 	_rb.pose = ""
 	_snap_progress = 0.0
 	_snap_from = _ball.world_pos
@@ -155,7 +178,7 @@ func _start_play() -> void:
 		for i in _receivers.size():
 			var p := _receivers[i]
 			p.pose = ""
-			_runners[i].start(Routes.PASS_TEST[p.role], p.global_position, 1.0)
+			_runners[i].start(Routes.PASS_TEST[p.role], p.global_position, attack_dir)
 		_set_target(0)
 
 
@@ -170,8 +193,15 @@ func defender_target(role: String) -> Variant:
 	return null
 
 
-func _check_tackles() -> void:
+func _check_touchdown() -> void:
 	if _carrier == null or _carrier.action == Player.Action.DOWN:
+		return
+	if _spot_from_x(_carrier.global_position.x) >= 100.0:
+		_end_play("touchdown")
+
+
+func _check_tackles() -> void:
+	if state == State.DEAD or _carrier == null or _carrier.action == Player.Action.DOWN:
 		return
 	for d in defense:
 		if d.action == Player.Action.DOWN or d.tackle_cooldown > 0.0:
@@ -189,13 +219,16 @@ func _tackle(defender: Player) -> void:
 	var sack := _carrier == _qb and play_type == PlayType.PASS
 	defender.facing = (_carrier.global_position - defender.global_position).normalized()
 	defender.knock_down(GET_UP_TIME)
-	_carrier.knock_down()
+	var downed_carrier := _carrier
 	_end_play("sack" if sack else "tackle")
+	downed_carrier.knock_down()
 
 
+## Encerra a jogada, aplica as regras (downs, placar, relógio) e prepara a próxima formação.
 func _end_play(result: String) -> void:
 	state = State.DEAD
 	play_result = result
+	_dead_time = 0.0
 	if _controller.controlled:
 		_controller.controlled.input_dir = Vector2.ZERO
 	_controller.enabled = false
@@ -203,6 +236,35 @@ func _end_play(result: String) -> void:
 		runner.stop()
 	for p in offense:
 		p.input_dir = Vector2.ZERO
+
+	var spot := rules.ball_on
+	if result == "touchdown":
+		spot = 100.0
+	elif result != "incomplete":
+		spot = _spot_from_x((_carrier if _carrier else _qb).global_position.x)
+	var events := rules.end_play(result, spot)
+	_show_message(_banner_for(result, events))
+
+
+func _banner_for(result: String, events: Dictionary) -> String:
+	if events["game_over"]:
+		return "FINAL"
+	if events["touchdown"]:
+		return "TOUCHDOWN!"
+	if events["turnover"]:
+		return "TURNOVER ON DOWNS"
+	if events["first_down"]:
+		return "1ST DOWN"
+	if result == "incomplete":
+		return "INCOMPLETE"
+	if result == "sack":
+		return "SACK"
+	return ""
+
+
+func _show_message(text: String) -> void:
+	_message = text
+	_message_time = MESSAGE_TIME
 
 
 func _update_handoff() -> void:
@@ -213,18 +275,22 @@ func _update_handoff() -> void:
 	if to_qb.length() <= HANDOFF_DISTANCE:
 		_take_control(_rb)
 		_clear_time = CLEAR_TIME
-		_clear_side = -1.0
+		_clear_side = -attack_dir
 
 
 ## Durante o passe, enquadra o recebedor selecionado sem perder o QB de vista.
 func _frame_pass() -> void:
+	if human_side != Side.OFFENSE:
+		return
 	var half_width := get_viewport_rect().size.x / 2.0
-	var gap := _receivers[_target_index].global_position.x - _qb.global_position.x
-	camera.look_ahead.x = clampf(gap / 2.0, CAMERA_LOOK_AHEAD, half_width - CAMERA_QB_MARGIN)
+	var gap := (_receivers[_target_index].global_position.x - _qb.global_position.x) * attack_dir
+	camera.look_ahead.x = attack_dir * clampf(gap / 2.0, CAMERA_LOOK_AHEAD, half_width - CAMERA_QB_MARGIN)
 
 
 ## S troca o recebedor, D lança a bola.
 func _pass_inputs() -> void:
+	if human_side != Side.OFFENSE:
+		return
 	if Input.is_action_just_pressed("btn_s"):
 		_set_target((_target_index + 1) % _receivers.size())
 	if Input.is_action_just_pressed("btn_d"):
@@ -252,7 +318,7 @@ func _throw() -> void:
 	_controller.enabled = false
 	_carrier = null
 	_anchor.global_position = from
-	camera.look_ahead.x = CAMERA_LOOK_AHEAD
+	camera.look_ahead.x = attack_dir * CAMERA_LOOK_AHEAD
 	camera.target = _anchor
 	state = State.FLIGHT
 
@@ -310,8 +376,17 @@ func _setup() -> void:
 		if n:
 			n.queue_free()
 
-	offense = _spawn(Formation.OFFENSE, Player.Team.A, Vector2.RIGHT)
-	defense = _spawn(Formation.DEFENSE, Player.Team.B, Vector2.LEFT)
+	attack_dir = 1.0 if rules.possession == 0 else -1.0
+	human_side = Side.OFFENSE if rules.possession == HUMAN_TEAM else Side.DEFENSE
+	var yard_line := rules.ball_on if attack_dir > 0.0 else 100.0 - rules.ball_on
+	scrimmage_spot = Vector2(
+			FieldConstants.yard_line_to_x(yard_line),
+			FieldConstants.yards_to_px(FieldConstants.WIDTH_YARDS) / 2.0)
+
+	var offense_team := Player.Team.A if rules.possession == 0 else Player.Team.B
+	var defense_team := Player.Team.B if rules.possession == 0 else Player.Team.A
+	offense = _spawn(Formation.OFFENSE, offense_team, attack_dir)
+	defense = _spawn(Formation.DEFENSE, defense_team, -attack_dir)
 	_qb = _find(offense, "QB")
 	_rb = _find(offense, "RB")
 	_receivers.clear()
@@ -347,7 +422,7 @@ func _setup() -> void:
 
 	if camera:
 		if human_side == Side.OFFENSE:
-			camera.look_ahead = Vector2(CAMERA_LOOK_AHEAD, 0.0)
+			camera.look_ahead = Vector2(CAMERA_LOOK_AHEAD * attack_dir, 0.0)
 			camera.target = _qb
 		else:
 			camera.look_ahead = Vector2.ZERO
@@ -366,22 +441,29 @@ func _clear_qb(delta: float) -> void:
 		_qb.input_dir = Vector2(0.0, _clear_side)
 	else:
 		_qb.input_dir = Vector2.ZERO
-		_qb.facing = Vector2.RIGHT
+		_qb.facing = Vector2(attack_dir, 0.0)
 
 
-## Time atacando para a direita; a defesa usa os mesmos offsets do outro lado da bola.
-func _spawn(slots: Array, team: Player.Team, facing: Vector2) -> Array[Player]:
+## Formações no referencial do ataque, giradas conforme a direção de ataque; a defesa usa os mesmos
+## offsets do outro lado da bola.
+func _spawn(slots: Array, team: Player.Team, facing_dir: float) -> Array[Player]:
 	var players: Array[Player] = []
 	for slot in slots:
 		var player: Player = PLAYER_SCENE.instantiate()
 		player.team = team
 		player.role = slot["role"]
-		player.facing = facing
+		player.facing = Vector2(facing_dir, 0.0)
 		player.pose = _pose_for(player.role)
-		player.position = scrimmage_spot + slot["pos"] * FieldConstants.PX_PER_YARD
+		player.position = scrimmage_spot + slot["pos"] * attack_dir * FieldConstants.PX_PER_YARD
 		add_child(player)
 		players.append(player)
 	return players
+
+
+## Jardas da goal line do time com a bola (0 a 100) para uma coordenada X do campo.
+func _spot_from_x(x: float) -> float:
+	var yard_line := x / FieldConstants.PX_PER_YARD - FieldConstants.ENDZONE_YARDS
+	return yard_line if attack_dir > 0.0 else 100.0 - yard_line
 
 
 func _hands(player: Player) -> Vector2:
