@@ -11,7 +11,7 @@ func _physics_process(_delta: float) -> void:
 	var player := get_parent() as Player
 	if player.is_controlled:
 		return
-	var target = match.defender_target(player.role)
+	var target = match.defender_target(player)
 	if target == null:
 		player.input_dir = Vector2.ZERO
 		return
