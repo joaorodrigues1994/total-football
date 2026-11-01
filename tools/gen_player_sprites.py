@@ -1,5 +1,5 @@
 """Gera os spritesheets base dos jogadores (24x24) em PNG puro, sem dependencias.
-Linhas: idle_side, run_side, idle_down, run_down, idle_up, run_up, stance_side, start_side, ready_side, juke_side, dive_side, lying_side, block_side, beaten_side. 4 colunas (idle usa 2).
+Linhas: idle_side, run_side, idle_down, run_down, idle_up, run_up, stance_side, start_side, ready_side, juke_side, dive_side, lying_side, block_side, beaten_side, kick_side, hold_side. 4 colunas (idle usa 2).
 Os PNGs gerados sao a base para refinar no LibreSprite."""
 import struct
 import sys
@@ -110,6 +110,55 @@ def draw_pose(kind, frame, main):
         c.rect(16, 7 + b, 17, 8 + b, SKIN)
         c.rect(17, 7 + b, 18, 10 + b, MASK_D)
         c.rect(13, 7 + b, 13, 8 + b, dark)
+    elif kind == "kick":  # chute: quadro 0 prepara (perna de tras), quadro 1 impacto (perna esticada)
+        BALL = (122, 72, 34, 255)
+        if frame == 0:
+            c.rect(12, 15, 13, 18, GRAY)
+            c.rect(12, 19, 13, 20, WHITE)
+            c.rect(12, 21, 14, 21, SHOE)
+            c.rect(8, 15, 10, 17, GRAY)
+            c.rect(6, 18, 8, 19, WHITE)
+            c.rect(4, 20, 7, 21, SHOE)
+            c.rect(8, 10, 15, 15, m)
+            c.rect(8, 15, 15, 15, dark)
+            c.rect(10, 12, 12, 13, WHITE)
+            c.rect(14, 11, 16, 12, m)
+            c.rect(16, 13, 17, 14, SKIN)
+            c.ellipse(13, 6, 5, 4.5, m)
+        else:
+            c.rect(9, 15, 10, 18, GRAY)
+            c.rect(9, 19, 10, 20, WHITE)
+            c.rect(8, 21, 11, 21, SHOE)
+            c.rect(12, 13, 16, 15, GRAY)
+            c.rect(17, 11, 19, 13, WHITE)
+            c.rect(20, 9, 23, 11, SHOE)
+            c.rect(7, 10, 14, 15, m)
+            c.rect(7, 15, 14, 15, dark)
+            c.rect(9, 12, 11, 13, WHITE)
+            c.rect(5, 10, 6, 11, m)
+            c.rect(3, 11, 5, 12, SKIN)
+            c.ellipse(11, 6, 5, 4.5, m)
+        c.rect(10, 3, 12, 3, light)
+        c.rect(15 if frame == 0 else 13, 7, 16 if frame == 0 else 14, 8, SKIN)
+        c.rect(16 if frame == 0 else 14, 7, 17 if frame == 0 else 15, 10, MASK_D)
+    elif kind == "hold":  # holder do field goal/extra point: de joelhos, maos a frente com a bola
+        BALL = (122, 72, 34, 255)
+        c.rect(5, 19, 11, 20, GRAY)
+        c.rect(4, 21, 7, 21, SHOE)
+        c.rect(12, 16, 14, 18, GRAY)
+        c.rect(12, 19, 14, 20, WHITE)
+        c.rect(12, 21, 15, 21, SHOE)
+        c.rect(9, 10 + b, 15, 17, m)
+        c.rect(9, 17, 15, 17, dark)
+        c.rect(10, 12 + b, 12, 13 + b, WHITE)
+        c.rect(15, 14 + b, 17, 15 + b, m)
+        c.rect(18, 15 + b, 19, 16 + b, SKIN)
+        c.rect(18, 17, 21, 20, BALL)
+        c.ellipse(13, 7 + b, 5, 4.5, m)
+        c.rect(10, 4 + b, 12, 4 + b, light)
+        c.rect(15, 8 + b, 16, 9 + b, SKIN)
+        c.rect(16, 8 + b, 17, 11 + b, MASK_D)
+        c.rect(12, 8 + b, 12, 9 + b, dark)
     elif kind == "block":  # confronto: abaixado, bracos esticados a frente empurrando
         c.rect(7, 16, 9, 18, GRAY)
         c.rect(6, 19, 8, 20, WHITE)
@@ -275,7 +324,7 @@ def main():
             ("down", True, 4), ("up", False, 2), ("up", True, 4),
             ("stance", None, 2), ("start", None, 2), ("ready", None, 2),
             ("juke", None, 3), ("dive", None, 2), ("lying", None, 1),
-            ("block", None, 2), ("beaten", None, 2)]
+            ("block", None, 2), ("beaten", None, 2), ("kick", None, 2), ("hold", None, 2)]
     for team, color in TEAMS.items():
         w, h = S * 4, S * len(rows)
         sheet = [[None] * w for _ in range(h)]

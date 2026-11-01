@@ -691,6 +691,7 @@ func _launch_kick() -> void:
 		_kick_landing = to
 		_begin_return_blocks()
 	_flight = PassFlight.new(from, to, from.distance_to(to) / KICK_SPEED, minf(110.0, from.distance_to(to) * 0.25))
+	_kicker.pose = "kick"
 	_controller.enabled = false  # o retornador corre sozinho até o ponto de queda
 	_anchor.global_position = from
 	if human_side == Side.OFFENSE:
@@ -944,6 +945,8 @@ func _hands(player: Player) -> Vector2:
 
 
 func _pose_for(role: String) -> String:
+	if role == "C1" and play_kind in [PlayKind.FIELD_GOAL, PlayKind.EXTRA_POINT]:
+		return "hold"  # holder do chute
 	if role in STANCE_ROLES:
 		return "stance"
 	if role in START_ROLES:
