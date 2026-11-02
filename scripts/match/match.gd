@@ -23,6 +23,10 @@ const DROPBACK_YARDS := 5.0
 const BALL_SPEED := 360.0
 const KICK_SPEED := 300.0
 const CATCH_RADIUS := 20.0
+## Disputa pela bola: o recebedor-alvo pesa RECEIVER_EDGE vezes (a bola foi lançada para ele); o defensor que vence
+## só intercepta com chance INTERCEPT_AFTER_WIN, senão o passe é quebrado (incompleto).
+const RECEIVER_EDGE := 2.0
+const INTERCEPT_AFTER_WIN := 0.25
 const KICK_CATCH_RADIUS := 30.0
 ## Contato (corpos se tocam a 14 px) que derruba o portador.
 const TACKLE_RADIUS := 16.0
@@ -87,6 +91,7 @@ var _cpu_throw_time := 0.0
 var _qb_brain := QbBrain.new()
 var _scramble_dir := Vector2.ZERO  # corredor escolhido pelo QB da CPU que fugiu do bolso
 var _carrier_brain := CarrierBrain.new()
+var _coverage := PassCoverage.new()
 var _runners: Array[RouteRunner] = []
 var _target_index := 0
 var _defense_index := 0
@@ -153,6 +158,7 @@ func _physics_process(delta: float) -> void:
 		State.HANDOFF:
 			_update_handoff()
 		State.DROPBACK:
+			_coverage.tick(delta)
 			_ball.world_pos = _hands(_qb)
 			_frame_pass()
 			_pass_inputs()
@@ -168,6 +174,7 @@ func _physics_process(delta: float) -> void:
 					_qb_brain.reset()
 					state = State.PASSING
 		State.PASSING:
+			_coverage.tick(delta)
 			_ball.world_pos = _hands(_qb)
 			_frame_pass()
 			_pass_inputs()
@@ -189,7 +196,7 @@ func _physics_process(delta: float) -> void:
 				if Input.is_action_just_pressed("btn_d"):
 					_carrier.try_dive()
 			elif _carrier.action != Player.Action.DOWN:
-				var move := _carrier_brain.think(delta, _carrier, defense, _block_system, attack_dir,
+				var move := _carrier_brain.think(delta, _carrier, defense, offense, _block_system, attack_dir,
 						FieldConstants.yard_line_to_x(100.0 if attack_dir > 0.0 else 0.0))
 				_carrier.input_dir = move["dir"]
 				if move["juke"]:
@@ -385,6 +392,7 @@ func _start_play() -> void:
 	var is_pass: bool = play_kind == PlayKind.SCRIMMAGE and offense_play["type"] == "pass"
 	play_type = PlayType.PASS if is_pass else PlayType.RUN
 	_snap_progress = 0.0
+	_coverage.clear()
 	_scramble_dir = Vector2.ZERO
 	_snap_from = _ball.world_pos
 	if human_side == Side.DEFENSE:
@@ -405,6 +413,11 @@ func _start_play() -> void:
 					p.pose = ""
 					_runners[i].start(offense_play["routes"][p.role], p.global_position, attack_dir)
 				_set_target(0)
+				var coverers: Array[Player] = []
+				for d in defense:
+					if d.role not in _pass_rushers():
+						coverers.append(d)
+				_coverage.begin(coverers, _receivers, attack_dir)
 		PlayKind.PUNT, PlayKind.FIELD_GOAL:
 			rules.snap()
 			state = State.SNAP
@@ -450,18 +463,33 @@ func defender_target(player: Player) -> Variant:
 			if player not in defense:
 				return null
 			var target := (_carrier if _carrier else _qb).global_position
-			if strategy["type"] == "pass":
-				if role in strategy["rush"]:
+			if strategy["type"] == "pass" or play_type == PlayType.PASS:
+				if role in _pass_rushers():
 					return target
+				if _coverage.covers(player):
+					return _coverage.target(player, attack_dir)
 				return _nearest_of(_receivers, player.global_position, INF).global_position  # cobertura
 			return null if _is_holding(player, strategy) else target
 		State.FLIGHT:
 			if player in defense:
+				if _coverage.covers(player):
+					return _coverage.target(player, attack_dir, _flight.to, _flight.duration - _flight.elapsed,
+							_receivers[_target_index])
 				return _flight.to
 		State.RUNNING:
 			if player in defense:
-				return null if _is_holding(player, strategy) else _carrier.global_position
+				if _is_holding(player, strategy):
+					return null
+				return RunPursuit.target(player, _carrier, attack_dir, not _in_return and not strategy.get("commit", false), defense)
 	return null
+
+
+## Quem ataca o QB num passe: os rushers da jogada de defesa contra passe. Se a defesa escolhida foi contra corrida
+## e o ataque passou, só a linha defensiva ataca o QB; o resto cobre os recebedores.
+func _pass_rushers() -> Array:
+	if defense_play.get("type") == "pass":
+		return defense_play["rush"]
+	return Playbook.DEFENSE_LINE
 
 
 ## Contra corrida: linebackers e secundária leem a jogada (snap e handoff + um instante) antes de perseguir.
@@ -469,7 +497,7 @@ func defender_target(player: Player) -> Variant:
 func _is_reading(player: Player) -> bool:
 	if play_type != PlayType.RUN or play_kind != PlayKind.SCRIMMAGE or _in_return:
 		return false
-	if player.role in Playbook.DEFENSE_LINE:
+	if player.role in Playbook.DEFENSE_LINE or defense_play.get("commit", false):
 		return false
 	return state in [State.SNAP, State.HANDOFF] or (state == State.RUNNING and _running_time < RUN_READ_DELAY)
 
@@ -723,8 +751,13 @@ func _update_flight(delta: float) -> void:
 	_ball.height = 0.0
 	var catcher := _nearest_of(_receivers, _flight.to, CATCH_RADIUS)
 	var interceptor := _nearest_of(defense, _flight.to, CATCH_RADIUS)
-	if interceptor and (catcher == null or _defender_wins_ball(catcher, interceptor)):
+	if interceptor and catcher == null:
 		_intercept(interceptor)
+	elif interceptor and _defender_wins_ball(catcher, interceptor):
+		if rules.rng.randf() < INTERCEPT_AFTER_WIN:
+			_intercept(interceptor)
+		else:
+			_end_play("incomplete")  # passe quebrado
 	elif catcher:
 		for i in _receivers.size():
 			_runners[i].stop()
@@ -734,11 +767,12 @@ func _update_flight(delta: float) -> void:
 		_end_play("incomplete")
 
 
-## Recebedor e defensor chegam juntos à bola: o sorteio é proporcional ao atributo de recepção de cada um.
+## Recebedor e defensor chegam juntos à bola: o sorteio é proporcional ao atributo de recepção de cada um,
+## com o recebedor-alvo pesando RECEIVER_EDGE vezes.
 func _defender_wins_ball(receiver: Player, defender: Player) -> bool:
 	var r := receiver.attributes.receiving
 	var d := defender.attributes.receiving
-	return rules.rng.randf() < float(d) / float(r + d)
+	return rules.rng.randf() < float(d) / (float(r) * RECEIVER_EDGE + float(d))
 
 
 ## Interceptação: a posse troca na jarda da bola e o defensor corre com ela (retorno, com seus bloqueadores).

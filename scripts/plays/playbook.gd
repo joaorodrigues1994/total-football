@@ -5,6 +5,8 @@ extends RefCounted
 ##   ataque: type ("run"/"pass"), block (esquema de BlockSchemes), mirror (espelha o esquema), routes (passes)
 ##   defesa: type ("run"/"pass"), rush (quem ataca o QB/portador desde o snap, nos passes),
 ##           hold (quem espera o portador cruzar a linha de scrimmage, nas corridas)
+##           commit (corridas): todos se comprometem com a corrida, sem atraso de leitura e sem safeties em
+##           profundidade; mais forte perto da linha, mais exposta a corridas longas
 
 const DIRECTIONS := ["up", "down", "left", "right"]
 const DEFENSE_LINE := ["LDE", "LDT", "RDT", "RDE"]
@@ -47,7 +49,7 @@ const OFFENSE := {
 
 const DEFENSE := {
 	"up_a": {"name": "BASE", "type": "run", "hold": []},
-	"down_a": {"name": "FULL BOX", "type": "run", "hold": SECONDARY},
+	"down_a": {"name": "FULL BOX", "type": "run", "hold": [], "commit": true},
 	"left_a": {"name": "CONTAIN L", "type": "run", "hold": ["LDE", "LOLB", "LCB"]},
 	"right_a": {"name": "CONTAIN R", "type": "run", "hold": ["RDE", "ROLB", "RCB"]},
 	"up_s": {"name": "RUSH 4", "type": "pass", "rush": DEFENSE_LINE},

@@ -33,6 +33,15 @@ const RETARGET_RANGE := 160.0
 const RETARGET_INTERVAL := 0.25
 ## Retornos: defensor que passou do retornador por mais que isto deixa de ser alvo relevante.
 const RELEVANCE_BEHIND := 24.0
+## Ultrapassagem (swim): depois de SWIM_MIN_HOLD s de contato, a cada disputa o defensor tenta se livrar do bloqueador
+## com chance SWIM_BASE + diferença de Hitting Power e de agilidade (defensor - bloqueador), limitada a SWIM_MAX.
+const SWIM_MIN_HOLD := 0.9
+const SWIM_BASE := 0.06
+const SWIM_PER_HP := 0.005
+const SWIM_PER_AGILITY := 0.004
+const SWIM_MAX := 0.35
+const SWIM_TIME := 0.25
+const SWIM_SPEED := 70.0
 
 ## Ponto que o bloqueio protege (portador, QB ou ponto de queda do chute); definido pela partida.
 var protect_fn: Callable
@@ -41,10 +50,14 @@ var links: Array[BlockLink] = []
 ## Contadores para depuração/testes.
 var breaks := 0
 var releases := 0
+var swims := 0
 
 var _defenders: Array[Player] = []
 var _dir := 1.0
 var _tactical := false
+## Corridas: o par engajado se solta quando o portador já passou do defensor.
+var _release_behind := false
+var _swim := false
 var _free_t: Dictionary = {}  # defensor -> tempo restante sem poder ser bloqueado
 var _rng := RandomNumberGenerator.new()
 
@@ -69,6 +82,8 @@ func begin(scheme_id: String, blockers: Array[Player], defenders: Array[Player],
 	_dir = dir
 	var scheme: Dictionary = BlockSchemes.SCHEMES[scheme_id]
 	_tactical = scheme.get("tactical", false)
+	_release_behind = scheme.get("release_behind", false)
+	_swim = scheme.get("swim", false)
 	if scheme.get("rank_match", false):
 		var mine := _sorted_by_lane(blockers)
 		var theirs := _sorted_by_lane(defenders)
@@ -91,6 +106,7 @@ func begin(scheme_id: String, blockers: Array[Player], defenders: Array[Player],
 			var target := _pick_target(roles, blocker, taken)
 			taken.append(target)
 			_add(blocker, target, spec["start"], spec["duration"], Vector2(drive.x * dir, drive.y))
+			links[-1].extra_decay = scheme.get("extra_decay", 0.0)
 	active = true
 
 
@@ -106,6 +122,7 @@ func clear() -> void:
 	_free_t.clear()
 	breaks = 0
 	releases = 0
+	swims = 0
 
 
 ## Solta todos: o efeito sobre os jogadores é desfeito e o sistema para.
@@ -173,6 +190,9 @@ func _step(link: BlockLink, protect: Vector2, delta: float) -> void:
 			b.block_pose = "beaten"
 			if is_instance_valid(d):
 				b.shove = (b.global_position - d.global_position).normalized() * KNOCKBACK_SPEED
+				if link.swim_time > 0.0:
+					link.swim_time -= delta
+					d.shove = link.swim_dir * SWIM_SPEED
 			if link.time_in_state >= BROKEN_TIME:
 				_start_recovering(link, RECOVER_TIME)
 		BlockLink.State.RECOVERING:
@@ -235,9 +255,18 @@ func _hold(link: BlockLink, protect: Vector2, delta: float) -> void:
 		if link.grip <= 0.0:
 			_break(link)
 			return
+		if _swim and link.held >= SWIM_MIN_HOLD and _rng.randf() < _swim_chance(b, d):
+			_break(link)
+			_start_swim(link, protect)
+			return
 		var new_state := _state_for_grip(link.grip)
 		if new_state != link.state:
 			link.set_state(new_state)
+	if _release_behind and not _is_relevant(d, protect):  # o portador já passou: o defensor volta ao jogo
+		releases += 1
+		_free_t[d] = FREE_TIME
+		_start_recovering(link, RELEASE_RECOVER_TIME)
+		return
 	if link.held >= link.duration:  # o bloqueio cumpriu o papel: solta o defensor
 		releases += 1
 		_free_t[d] = FREE_TIME
@@ -269,6 +298,23 @@ func _start_recovering(link: BlockLink, time: float) -> void:
 	link.recover_time = time
 	link.held = 0.0
 	link.set_state(BlockLink.State.RECOVERING)
+
+
+## Chance de ultrapassagem por disputa: Hitting Power e agilidade do defensor contra os do bloqueador.
+func _swim_chance(blocker: Player, defender: Player) -> float:
+	var chance := SWIM_BASE 			+ (defender.attributes.hitting_power - blocker.attributes.hitting_power) * SWIM_PER_HP 			+ (defender.attributes.agility - blocker.attributes.agility) * SWIM_PER_AGILITY
+	return clampf(chance, 0.0, SWIM_MAX)
+
+
+## O defensor desliza para o lado em que está, em direção ao que o bloqueio protege.
+func _start_swim(link: BlockLink, protect: Vector2) -> void:
+	swims += 1
+	var d := link.defender
+	var side := signf(d.global_position.y - link.blocker.global_position.y)
+	if side == 0.0:
+		side = 1.0
+	link.swim_dir = ((protect - d.global_position).normalized() * 0.6 + Vector2(0.0, side) * 0.8).normalized()
+	link.swim_time = SWIM_TIME
 
 
 func _state_for_grip(grip: float) -> BlockLink.State:
@@ -373,7 +419,7 @@ func _pick_free(link: BlockLink, from: Vector2, protect: Vector2) -> Player:
 
 ## Nos retornos, só importa quem ainda está à frente do retornador (ou do ponto de queda).
 func _is_relevant(d: Player, protect: Vector2) -> bool:
-	return not _tactical or (d.global_position.x - protect.x) * _dir > -RELEVANCE_BEHIND
+	return not (_tactical or _release_behind) or (d.global_position.x - protect.x) * _dir > -RELEVANCE_BEHIND
 
 
 func _is_taken(d: Player, except: BlockLink) -> bool:

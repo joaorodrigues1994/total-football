@@ -22,6 +22,9 @@ var retarget_timer := 0.0
 ## Teto e desgaste extra do domínio (retornos): ninguém segura a cobertura indefinidamente.
 var grip_cap := 1.0
 var extra_decay := 0.0
+## Ultrapassagem (swim) do defensor: deslize lateral logo após livrar-se do bloqueador.
+var swim_time := 0.0
+var swim_dir := Vector2.ZERO
 
 
 func set_state(new_state: State) -> void:

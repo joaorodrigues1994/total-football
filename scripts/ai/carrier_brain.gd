@@ -18,6 +18,10 @@ const KEEP_BONUS := 0.15
 ## Parados em bloqueio ainda atrapalham o caminho, mas não vão atrás do portador.
 const BLOCKED_RISK := 0.6
 const PREDICT_TIME := 0.3
+## Aliados (bloqueadores): o corpo tem 14 px, então a faixa livre precisa de uns 18 px de cada lado do centro.
+const ALLY_LANE_WIDTH := 18.0
+const ALLY_WALL_RISK := 0.9
+const ALLY_MOVING_RISK := 0.3
 const JUKE_RANGE := 42.0
 ## Depois da finta o portador corta para o lado por este tempo (o corpo do defensor bloqueia o caminho).
 const DODGE_TIME := 0.4
@@ -50,20 +54,21 @@ func reset(hint := Vector2.ZERO) -> void:
 
 
 ## Chamado a cada frame. Retorna {"dir": Vector2, "juke": bool, "dive": bool} (juke/dive valem só uma vez).
-func think(delta: float, carrier: Player, defenders: Array[Player], blocks: BlockSystem,
+func think(delta: float, carrier: Player, defenders: Array[Player], allies: Array[Player], blocks: BlockSystem,
 		forward: float, goal_x: float) -> Dictionary:
 	_timer += delta
 	_dodge_time = maxf(_dodge_time - delta, 0.0)
 	if _timer >= EVAL_INTERVAL:
 		_timer = 0.0
-		_decide(carrier, defenders, blocks, forward, goal_x)
+		_decide(carrier, defenders, allies, blocks, forward, goal_x)
 	var result := {"dir": _dodge_dir if _dodge_time > 0.0 else _dir, "juke": _juke, "dive": _dive}
 	_juke = false
 	_dive = false
 	return result
 
 
-func _decide(carrier: Player, defenders: Array[Player], blocks: BlockSystem, forward: float, goal_x: float) -> void:
+func _decide(carrier: Player, defenders: Array[Player], allies: Array[Player], blocks: BlockSystem,
+		forward: float, goal_x: float) -> void:
 	var attrs := carrier.attributes
 	var look := BASE_LOOK_AHEAD + attrs.speed * 0.8
 	var risk_weight := lerpf(RISK_WEIGHT_WEAK, RISK_WEIGHT_STRONG, attrs.strength / 100.0)
@@ -76,7 +81,7 @@ func _decide(carrier: Player, defenders: Array[Player], blocks: BlockSystem, for
 		if in_goal_zone and absf(angle) > 40.0:  # perto do touchdown: segue para a endzone
 			continue
 		var v := Vector2(forward, 0.0).rotated(deg_to_rad(angle) * forward)
-		var risk := _lane_risk(carrier, v, look, defenders, blocks)
+		var risk := maxf(_lane_risk(carrier, v, look, defenders, blocks), _ally_risk(carrier, v, look, allies))
 		var score := v.x * forward * (2.0 if in_goal_zone else 1.0) - risk * risk_weight - absf(angle) / 90.0 * turn_cost * 2.0
 		if _dir != Vector2.ZERO and v.dot(_dir) > 0.97:
 			score += KEEP_BONUS
@@ -115,6 +120,24 @@ func _lane_risk(carrier: Player, v: Vector2, look: float, defenders: Array[Playe
 			continue
 		var proximity := (1.0 - along / look) * (1.0 - side / LANE_WIDTH * 0.5)
 		risk = maxf(risk, proximity * (1.0 if free else BLOCKED_RISK))
+	return risk
+
+
+## Aliados no caminho: bloqueadores engajados são paredes paradas (risco cheio); os que se movem pesam menos.
+func _ally_risk(carrier: Player, v: Vector2, look: float, allies: Array[Player]) -> float:
+	var risk := 0.0
+	for a in allies:
+		if a == carrier or a.action == Player.Action.DOWN:
+			continue
+		var offset := a.global_position - carrier.global_position
+		var along := offset.dot(v)
+		if along < 0.0 or along > look:
+			continue
+		var side := absf(offset.cross(v))
+		if side > ALLY_LANE_WIDTH:
+			continue
+		var wall := a.block_pose == "block" or a.velocity.length() < 5.0
+		risk = maxf(risk, (1.0 - along / look) * (1.0 - side / ALLY_LANE_WIDTH * 0.5) * (ALLY_WALL_RISK if wall else ALLY_MOVING_RISK))
 	return risk
 
 
