@@ -1,193 +1,340 @@
 [gd_resource type="Resource" script_class="TeamData" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/roster_entry.gd" id="1_t6xop"]
-[ext_resource type="Resource" path="res://data/players/gen_b_lt.tres" id="2_gohr8"]
-[ext_resource type="Resource" path="res://data/players/gen_b_lg.tres" id="3_ywbu2"]
-[ext_resource type="Resource" path="res://data/players/gen_b_c.tres" id="4_epq51"]
-[ext_resource type="Resource" path="res://data/players/gen_b_rg.tres" id="5_7om1t"]
-[ext_resource type="Resource" path="res://data/players/gen_b_rt.tres" id="6_gje4y"]
-[ext_resource type="Resource" path="res://data/players/gen_b_te.tres" id="7_5xou3"]
-[ext_resource type="Resource" path="res://data/players/gen_b_qb.tres" id="8_7g6wi"]
-[ext_resource type="Resource" path="res://data/players/gen_b_rb.tres" id="9_svuji"]
-[ext_resource type="Resource" path="res://data/players/gen_b_wr1.tres" id="10_asiam"]
-[ext_resource type="Resource" path="res://data/players/gen_b_wr2.tres" id="11_iocou"]
-[ext_resource type="Resource" path="res://data/players/gen_b_wr3.tres" id="12_1kakr"]
-[ext_resource type="Resource" path="res://data/players/gen_b_lde.tres" id="13_lcnrb"]
-[ext_resource type="Resource" path="res://data/players/gen_b_ldt.tres" id="14_60mwa"]
-[ext_resource type="Resource" path="res://data/players/gen_b_rdt.tres" id="15_ql418"]
-[ext_resource type="Resource" path="res://data/players/gen_b_rde.tres" id="16_lv8ew"]
-[ext_resource type="Resource" path="res://data/players/gen_b_lolb.tres" id="17_rs5gx"]
-[ext_resource type="Resource" path="res://data/players/gen_b_mlb.tres" id="18_v52uv"]
-[ext_resource type="Resource" path="res://data/players/gen_b_rolb.tres" id="19_5t8ii"]
-[ext_resource type="Resource" path="res://data/players/gen_b_lcb.tres" id="20_6hvlg"]
-[ext_resource type="Resource" path="res://data/players/gen_b_rcb.tres" id="21_ole7e"]
-[ext_resource type="Resource" path="res://data/players/gen_b_fs.tres" id="22_ap3ny"]
-[ext_resource type="Resource" path="res://data/players/gen_b_ss.tres" id="23_1imr8"]
-[ext_resource type="Resource" path="res://data/players/gen_b_k.tres" id="24_58r76"]
-[ext_resource type="Resource" path="res://data/players/gen_b_r.tres" id="25_xitv4"]
-[ext_resource type="Resource" path="res://data/players/gen_b_res_qb.tres" id="26_owndi"]
-[ext_resource type="Resource" path="res://data/players/gen_b_res_wr.tres" id="27_042hm"]
-[ext_resource type="Script" path="res://scripts/data/team_data.gd" id="28_o5juu"]
+[ext_resource type="Script" path="res://scripts/data/roster_entry.gd" id="1_ap3ny"]
+[ext_resource type="Resource" path="res://data/players/gen_b_lt.tres" id="2_1imr8"]
+[ext_resource type="Resource" path="res://data/players/gen_b_lg.tres" id="3_58r76"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c.tres" id="4_xitv4"]
+[ext_resource type="Resource" path="res://data/players/gen_b_rg.tres" id="5_owndi"]
+[ext_resource type="Resource" path="res://data/players/gen_b_rt.tres" id="6_042hm"]
+[ext_resource type="Resource" path="res://data/players/gen_b_te.tres" id="7_o5juu"]
+[ext_resource type="Resource" path="res://data/players/gen_b_qb.tres" id="8_y2sin"]
+[ext_resource type="Resource" path="res://data/players/gen_b_rb.tres" id="9_kavon"]
+[ext_resource type="Resource" path="res://data/players/gen_b_wr1.tres" id="10_e8gws"]
+[ext_resource type="Resource" path="res://data/players/gen_b_wr2.tres" id="11_2uvrp"]
+[ext_resource type="Resource" path="res://data/players/gen_b_wr3.tres" id="12_52pnt"]
+[ext_resource type="Resource" path="res://data/players/gen_b_lde.tres" id="13_s1ngs"]
+[ext_resource type="Resource" path="res://data/players/gen_b_ldt.tres" id="14_dmvs3"]
+[ext_resource type="Resource" path="res://data/players/gen_b_rdt.tres" id="15_hu2h0"]
+[ext_resource type="Resource" path="res://data/players/gen_b_rde.tres" id="16_jxv3q"]
+[ext_resource type="Resource" path="res://data/players/gen_b_lolb.tres" id="17_w8n7t"]
+[ext_resource type="Resource" path="res://data/players/gen_b_mlb.tres" id="18_t2rle"]
+[ext_resource type="Resource" path="res://data/players/gen_b_rolb.tres" id="19_r5feu"]
+[ext_resource type="Resource" path="res://data/players/gen_b_lcb.tres" id="20_jte6u"]
+[ext_resource type="Resource" path="res://data/players/gen_b_rcb.tres" id="21_2soec"]
+[ext_resource type="Resource" path="res://data/players/gen_b_fs.tres" id="22_fpuvx"]
+[ext_resource type="Resource" path="res://data/players/gen_b_ss.tres" id="23_0ysyw"]
+[ext_resource type="Resource" path="res://data/players/gen_b_k.tres" id="24_bv255"]
+[ext_resource type="Resource" path="res://data/players/gen_b_r.tres" id="25_r15sk"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c1.tres" id="26_fk0qu"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c2.tres" id="27_w420r"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c3.tres" id="28_n38mt"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c4.tres" id="29_l1h6h"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c5.tres" id="30_6xvsi"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c6.tres" id="31_o5141"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c7.tres" id="32_y7re0"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c8.tres" id="33_31184"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c9.tres" id="34_ytnee"]
+[ext_resource type="Resource" path="res://data/players/gen_b_c10.tres" id="35_dqxaf"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b0.tres" id="36_3gavd"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b1.tres" id="37_d64ix"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b2.tres" id="38_k7yie"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b3.tres" id="39_r0e6e"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b4.tres" id="40_udy4o"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b5.tres" id="41_qst6q"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b6.tres" id="42_e3de2"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b7.tres" id="43_nmwng"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b8.tres" id="44_5jubl"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b9.tres" id="45_c07n6"]
+[ext_resource type="Resource" path="res://data/players/gen_b_b10.tres" id="46_mjlnl"]
+[ext_resource type="Resource" path="res://data/players/gen_b_res_qb.tres" id="47_3htwv"]
+[ext_resource type="Resource" path="res://data/players/gen_b_res_wr.tres" id="48_2nspa"]
+[ext_resource type="Script" path="res://scripts/data/team_data.gd" id="49_pyr2b"]
 
-[sub_resource type="Resource" id="Resource_y2sin"]
-script = ExtResource("1_t6xop")
-player = ExtResource("2_gohr8")
+[sub_resource type="Resource" id="Resource_m8n76"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("2_1imr8")
 jersey_number = 1
 starter_slot = "LT"
 
-[sub_resource type="Resource" id="Resource_kavon"]
-script = ExtResource("1_t6xop")
-player = ExtResource("3_ywbu2")
+[sub_resource type="Resource" id="Resource_quojb"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("3_58r76")
 jersey_number = 2
 starter_slot = "LG"
 
-[sub_resource type="Resource" id="Resource_e8gws"]
-script = ExtResource("1_t6xop")
-player = ExtResource("4_epq51")
+[sub_resource type="Resource" id="Resource_owgmy"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("4_xitv4")
 jersey_number = 3
 starter_slot = "C"
 
-[sub_resource type="Resource" id="Resource_2uvrp"]
-script = ExtResource("1_t6xop")
-player = ExtResource("5_7om1t")
+[sub_resource type="Resource" id="Resource_twobu"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("5_owndi")
 jersey_number = 4
 starter_slot = "RG"
 
-[sub_resource type="Resource" id="Resource_52pnt"]
-script = ExtResource("1_t6xop")
-player = ExtResource("6_gje4y")
+[sub_resource type="Resource" id="Resource_4mh33"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("6_042hm")
 jersey_number = 5
 starter_slot = "RT"
 
-[sub_resource type="Resource" id="Resource_s1ngs"]
-script = ExtResource("1_t6xop")
-player = ExtResource("7_5xou3")
+[sub_resource type="Resource" id="Resource_nac1c"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("7_o5juu")
 jersey_number = 6
 starter_slot = "TE"
 
-[sub_resource type="Resource" id="Resource_dmvs3"]
-script = ExtResource("1_t6xop")
-player = ExtResource("8_7g6wi")
+[sub_resource type="Resource" id="Resource_ijd7u"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("8_y2sin")
 jersey_number = 7
 starter_slot = "QB"
 
-[sub_resource type="Resource" id="Resource_hu2h0"]
-script = ExtResource("1_t6xop")
-player = ExtResource("9_svuji")
+[sub_resource type="Resource" id="Resource_dcnhn"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("9_kavon")
 jersey_number = 8
 starter_slot = "RB"
 
-[sub_resource type="Resource" id="Resource_jxv3q"]
-script = ExtResource("1_t6xop")
-player = ExtResource("10_asiam")
+[sub_resource type="Resource" id="Resource_ntmqt"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("10_e8gws")
 jersey_number = 9
 starter_slot = "WR1"
 
-[sub_resource type="Resource" id="Resource_w8n7t"]
-script = ExtResource("1_t6xop")
-player = ExtResource("11_iocou")
+[sub_resource type="Resource" id="Resource_72fyb"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("11_2uvrp")
 jersey_number = 10
 starter_slot = "WR2"
 
-[sub_resource type="Resource" id="Resource_t2rle"]
-script = ExtResource("1_t6xop")
-player = ExtResource("12_1kakr")
+[sub_resource type="Resource" id="Resource_78b1o"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("12_52pnt")
 jersey_number = 11
 starter_slot = "WR3"
 
-[sub_resource type="Resource" id="Resource_r5feu"]
-script = ExtResource("1_t6xop")
-player = ExtResource("13_lcnrb")
+[sub_resource type="Resource" id="Resource_7opwe"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("13_s1ngs")
 jersey_number = 12
 starter_slot = "LDE"
 
-[sub_resource type="Resource" id="Resource_jte6u"]
-script = ExtResource("1_t6xop")
-player = ExtResource("14_60mwa")
+[sub_resource type="Resource" id="Resource_02bs2"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("14_dmvs3")
 jersey_number = 13
 starter_slot = "LDT"
 
-[sub_resource type="Resource" id="Resource_2soec"]
-script = ExtResource("1_t6xop")
-player = ExtResource("15_ql418")
+[sub_resource type="Resource" id="Resource_ritsi"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("15_hu2h0")
 jersey_number = 14
 starter_slot = "RDT"
 
-[sub_resource type="Resource" id="Resource_fpuvx"]
-script = ExtResource("1_t6xop")
-player = ExtResource("16_lv8ew")
+[sub_resource type="Resource" id="Resource_jhayx"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("16_jxv3q")
 jersey_number = 15
 starter_slot = "RDE"
 
-[sub_resource type="Resource" id="Resource_0ysyw"]
-script = ExtResource("1_t6xop")
-player = ExtResource("17_rs5gx")
+[sub_resource type="Resource" id="Resource_no2vu"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("17_w8n7t")
 jersey_number = 16
 starter_slot = "LOLB"
 
-[sub_resource type="Resource" id="Resource_bv255"]
-script = ExtResource("1_t6xop")
-player = ExtResource("18_v52uv")
+[sub_resource type="Resource" id="Resource_wrpgf"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("18_t2rle")
 jersey_number = 17
 starter_slot = "MLB"
 
-[sub_resource type="Resource" id="Resource_r15sk"]
-script = ExtResource("1_t6xop")
-player = ExtResource("19_5t8ii")
+[sub_resource type="Resource" id="Resource_3p0ph"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("19_r5feu")
 jersey_number = 18
 starter_slot = "ROLB"
 
-[sub_resource type="Resource" id="Resource_fk0qu"]
-script = ExtResource("1_t6xop")
-player = ExtResource("20_6hvlg")
+[sub_resource type="Resource" id="Resource_eq4ac"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("20_jte6u")
 jersey_number = 19
 starter_slot = "LCB"
 
-[sub_resource type="Resource" id="Resource_w420r"]
-script = ExtResource("1_t6xop")
-player = ExtResource("21_ole7e")
+[sub_resource type="Resource" id="Resource_m2xkb"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("21_2soec")
 jersey_number = 20
 starter_slot = "RCB"
 
-[sub_resource type="Resource" id="Resource_n38mt"]
-script = ExtResource("1_t6xop")
-player = ExtResource("22_ap3ny")
+[sub_resource type="Resource" id="Resource_6btfs"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("22_fpuvx")
 jersey_number = 21
 starter_slot = "FS"
 
-[sub_resource type="Resource" id="Resource_l1h6h"]
-script = ExtResource("1_t6xop")
-player = ExtResource("23_1imr8")
+[sub_resource type="Resource" id="Resource_06b23"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("23_0ysyw")
 jersey_number = 22
 starter_slot = "SS"
 
-[sub_resource type="Resource" id="Resource_6xvsi"]
-script = ExtResource("1_t6xop")
-player = ExtResource("24_58r76")
+[sub_resource type="Resource" id="Resource_b0i8a"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("24_bv255")
 jersey_number = 23
 starter_slot = "K"
 
-[sub_resource type="Resource" id="Resource_o5141"]
-script = ExtResource("1_t6xop")
-player = ExtResource("25_xitv4")
+[sub_resource type="Resource" id="Resource_hcjy6"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("25_r15sk")
 jersey_number = 24
 starter_slot = "R"
 
-[sub_resource type="Resource" id="Resource_y7re0"]
-script = ExtResource("1_t6xop")
-player = ExtResource("26_owndi")
+[sub_resource type="Resource" id="Resource_8ngkt"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("26_fk0qu")
 jersey_number = 25
+starter_slot = "C1"
 
-[sub_resource type="Resource" id="Resource_31184"]
-script = ExtResource("1_t6xop")
-player = ExtResource("27_042hm")
+[sub_resource type="Resource" id="Resource_77gqg"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("27_w420r")
 jersey_number = 26
+starter_slot = "C2"
+
+[sub_resource type="Resource" id="Resource_jjply"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("28_n38mt")
+jersey_number = 27
+starter_slot = "C3"
+
+[sub_resource type="Resource" id="Resource_svtrc"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("29_l1h6h")
+jersey_number = 28
+starter_slot = "C4"
+
+[sub_resource type="Resource" id="Resource_5kje6"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("30_6xvsi")
+jersey_number = 29
+starter_slot = "C5"
+
+[sub_resource type="Resource" id="Resource_4audh"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("31_o5141")
+jersey_number = 30
+starter_slot = "C6"
+
+[sub_resource type="Resource" id="Resource_ts56e"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("32_y7re0")
+jersey_number = 31
+starter_slot = "C7"
+
+[sub_resource type="Resource" id="Resource_eshc8"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("33_31184")
+jersey_number = 32
+starter_slot = "C8"
+
+[sub_resource type="Resource" id="Resource_gl3pl"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("34_ytnee")
+jersey_number = 33
+starter_slot = "C9"
+
+[sub_resource type="Resource" id="Resource_q85lq"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("35_dqxaf")
+jersey_number = 34
+starter_slot = "C10"
+
+[sub_resource type="Resource" id="Resource_v7pn2"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("36_3gavd")
+jersey_number = 35
+starter_slot = "B0"
+
+[sub_resource type="Resource" id="Resource_645cb"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("37_d64ix")
+jersey_number = 36
+starter_slot = "B1"
+
+[sub_resource type="Resource" id="Resource_ouayc"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("38_k7yie")
+jersey_number = 37
+starter_slot = "B2"
+
+[sub_resource type="Resource" id="Resource_dxnqc"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("39_r0e6e")
+jersey_number = 38
+starter_slot = "B3"
+
+[sub_resource type="Resource" id="Resource_f8812"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("40_udy4o")
+jersey_number = 39
+starter_slot = "B4"
+
+[sub_resource type="Resource" id="Resource_ts2r5"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("41_qst6q")
+jersey_number = 40
+starter_slot = "B5"
+
+[sub_resource type="Resource" id="Resource_vn7ih"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("42_e3de2")
+jersey_number = 41
+starter_slot = "B6"
+
+[sub_resource type="Resource" id="Resource_b3lqv"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("43_nmwng")
+jersey_number = 42
+starter_slot = "B7"
+
+[sub_resource type="Resource" id="Resource_4pf63"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("44_5jubl")
+jersey_number = 43
+starter_slot = "B8"
+
+[sub_resource type="Resource" id="Resource_8twoj"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("45_c07n6")
+jersey_number = 44
+starter_slot = "B9"
+
+[sub_resource type="Resource" id="Resource_jnmp2"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("46_mjlnl")
+jersey_number = 45
+starter_slot = "B10"
+
+[sub_resource type="Resource" id="Resource_gx65x"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("47_3htwv")
+jersey_number = 46
+
+[sub_resource type="Resource" id="Resource_04vrl"]
+script = ExtResource("1_ap3ny")
+player = ExtResource("48_2nspa")
+jersey_number = 47
 
 [resource]
-script = ExtResource("28_o5juu")
+script = ExtResource("49_pyr2b")
 id = "gen_b"
 full_name = "Time B"
 abbreviation = "TMB"
 primary_color = Color(0.54901963, 0.12156863, 0.16470589, 1)
 secondary_color = Color(0.9254902, 0.9254902, 0.9411765, 1)
-entries = Array[ExtResource("1_t6xop")]([SubResource("Resource_y2sin"), SubResource("Resource_kavon"), SubResource("Resource_e8gws"), SubResource("Resource_2uvrp"), SubResource("Resource_52pnt"), SubResource("Resource_s1ngs"), SubResource("Resource_dmvs3"), SubResource("Resource_hu2h0"), SubResource("Resource_jxv3q"), SubResource("Resource_w8n7t"), SubResource("Resource_t2rle"), SubResource("Resource_r5feu"), SubResource("Resource_jte6u"), SubResource("Resource_2soec"), SubResource("Resource_fpuvx"), SubResource("Resource_0ysyw"), SubResource("Resource_bv255"), SubResource("Resource_r15sk"), SubResource("Resource_fk0qu"), SubResource("Resource_w420r"), SubResource("Resource_n38mt"), SubResource("Resource_l1h6h"), SubResource("Resource_6xvsi"), SubResource("Resource_o5141"), SubResource("Resource_y7re0"), SubResource("Resource_31184")])
+entries = Array[ExtResource("1_ap3ny")]([SubResource("Resource_m8n76"), SubResource("Resource_quojb"), SubResource("Resource_owgmy"), SubResource("Resource_twobu"), SubResource("Resource_4mh33"), SubResource("Resource_nac1c"), SubResource("Resource_ijd7u"), SubResource("Resource_dcnhn"), SubResource("Resource_ntmqt"), SubResource("Resource_72fyb"), SubResource("Resource_78b1o"), SubResource("Resource_7opwe"), SubResource("Resource_02bs2"), SubResource("Resource_ritsi"), SubResource("Resource_jhayx"), SubResource("Resource_no2vu"), SubResource("Resource_wrpgf"), SubResource("Resource_3p0ph"), SubResource("Resource_eq4ac"), SubResource("Resource_m2xkb"), SubResource("Resource_6btfs"), SubResource("Resource_06b23"), SubResource("Resource_b0i8a"), SubResource("Resource_hcjy6"), SubResource("Resource_8ngkt"), SubResource("Resource_77gqg"), SubResource("Resource_jjply"), SubResource("Resource_svtrc"), SubResource("Resource_5kje6"), SubResource("Resource_4audh"), SubResource("Resource_ts56e"), SubResource("Resource_eshc8"), SubResource("Resource_gl3pl"), SubResource("Resource_q85lq"), SubResource("Resource_v7pn2"), SubResource("Resource_645cb"), SubResource("Resource_ouayc"), SubResource("Resource_dxnqc"), SubResource("Resource_f8812"), SubResource("Resource_ts2r5"), SubResource("Resource_vn7ih"), SubResource("Resource_b3lqv"), SubResource("Resource_4pf63"), SubResource("Resource_8twoj"), SubResource("Resource_jnmp2"), SubResource("Resource_gx65x"), SubResource("Resource_04vrl")])

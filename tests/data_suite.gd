@@ -16,10 +16,10 @@ func _init() -> void:
 	var reg := TeamRegistry.new()
 	_check(reg.load_all(), "carrega e valida os dados: %s" % str(reg.errors))
 	_check(reg.teams.size() == 2 and reg.teams.has("gen_a") and reg.teams.has("gen_b"), "dois times genéricos")
-	_check(reg.players.size() == 52, "52 jogadores cadastrados (%d)" % reg.players.size())
+	_check(reg.players.size() == 94, "94 jogadores cadastrados (%d)" % reg.players.size())
 	var team_a: TeamData = reg.teams["gen_a"]
 	var team_b: TeamData = reg.teams["gen_b"]
-	_check(team_a.entries.size() == 26 and team_b.entries.size() == 26, "26 vínculos por time")
+	_check(team_a.entries.size() == 47 and team_b.entries.size() == 47, "47 vínculos por time")
 	_check(team_a.reserves().size() == 2, "2 reservas")
 	_check(team_a.primary_color != team_b.primary_color, "cores primárias distintas")
 	_equivalence(team_a)

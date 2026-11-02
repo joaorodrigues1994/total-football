@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PlayerData" format=3]
+
+[ext_resource type="Script" path="res://scripts/entities/player_attributes.gd" id="1_aapxk"]
+[ext_resource type="Script" path="res://scripts/data/player_data.gd" id="2_kysgv"]
+
+[sub_resource type="Resource" id="Resource_udxeu"]
+script = ExtResource("1_aapxk")
+
+[resource]
+script = ExtResource("2_kysgv")
+id = "gen_b_b6"
+display_name = "Jogador B-B6"
+position = "ST"
+attributes = SubResource("Resource_udxeu")

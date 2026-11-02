@@ -113,15 +113,63 @@ func _fallback(m: Match) -> void:
 	m.roster = original
 
 
-## Chutes e retornos seguem por papel até a etapa 3.
-func _kicks(m: Match) -> void:
-	m.rules.start_kickoff(0)
-	m._setup()
-	for p in m.offense + m.defense:
-		_check(p.state == null, "kickoff: %s sem estado (fallback por papel)" % p.role)
-		break
+## Prepara cada tipo de jogada de chute (kickoff, punt, field goal, extra point).
+func _kick_setup(m: Match, kind: String) -> void:
 	m.rules.start_drive(0, 40.0)
-	m._setup(Match.PlayKind.PUNT)
-	for p in m.offense + m.defense:
-		_check(p.state == null, "punt: %s sem estado (fallback por papel)" % p.role)
-		break
+	match kind:
+		"kickoff":
+			m.rules.start_kickoff(0)
+			m._setup()
+		"punt":
+			m._setup(Match.PlayKind.PUNT)
+		"field_goal":
+			m._setup(Match.PlayKind.FIELD_GOAL)
+		"extra_point":
+			m.rules.next_play = GameRules.Next.EXTRA_POINT
+			m._setup()
+
+
+func _kicks(m: Match) -> void:
+	for kind in ["kickoff", "punt", "field_goal", "extra_point"]:
+		var first := {}
+		for round in 2:
+			_kick_setup(m, kind)
+			_check(m.offense.size() == 11 and m.defense.size() == 11, "%s: 11 jogadores por lado" % kind)
+			for p in m.offense + m.defense:
+				var key := "%s/%d/%s" % [kind, p.team, p.role]
+				_check(p.state != null, "%s tem estado" % key)
+				if p.state == null:
+					continue
+				var team: TeamData = m.roster.teams[p.team]
+				_check(p.player_id() == team.starter_for(p.role).player.id, "%s: id do titular da vaga" % key)
+				var expected := PlayerAttributes.for_role(p.role)
+				var same := true
+				for attr in PlayerMatchState.ATTRIBUTES:
+					if p.attributes.get(attr) != expected.get(attr):
+						same = false
+				_check(same, "%s: atributos iguais a for_role" % key)
+				if first.has(key):
+					_check(first[key] == p.state, "%s mantém o mesmo estado entre jogadas" % key)
+				first[key] = p.state
+	_kick_setup(m, "kickoff")
+	_check(m._find(m.offense, "K").player_id() == "gen_a_k", "kickoff: chutador é o K do time A")
+	_check(m._find(m.defense, "R").player_id() == "gen_b_r", "kickoff: retornador é o R do time B")
+	_kick_setup(m, "field_goal")
+	_check(m._find(m.offense, "C1").player_id() == "gen_a_c1", "field goal: holder é o C1 do time A")
+	_check(m._find(m.defense, "B0").player_id() == "gen_b_b0", "field goal: B0 vem do elenco do time B")
+
+	# times invertidos e vaga de special teams sem especialista
+	var original := m.roster
+	m.roster = MatchRoster.new(original.teams[1], original.teams[0])
+	_kick_setup(m, "kickoff")
+	_check(m._find(m.offense, "K").player_id() == "gen_b_k", "kickoff com times invertidos")
+	var partial := TeamData.new()
+	partial.id = "parcial"
+	for e in original.teams[0].entries:
+		if e.starter_slot != "C5":
+			partial.entries.append(e)
+	m.roster = MatchRoster.new(partial, original.teams[1])
+	_kick_setup(m, "punt")
+	var c5 := m._find(m.offense, "C5")
+	_check(c5.state == null and c5.attributes.hitting_power == PlayerAttributes.for_role("C5").hitting_power, "C5 sem especialista usa for_role")
+	m.roster = original

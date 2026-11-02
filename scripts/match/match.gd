@@ -1060,10 +1060,7 @@ func _spawn(slots: Array, team: Player.Team, facing_dir: float) -> Array[Player]
 		var player: Player = PLAYER_SCENE.instantiate()
 		player.team = team
 		player.role = slot["role"]
-		# Só os jogadores de scrimmage vêm do elenco; chutes e retornos seguem por papel até a etapa 3.
-		var cast: PlayerMatchState = null
-		if roster and play_kind == PlayKind.SCRIMMAGE:
-			cast = roster.state_for(team, player.role)
+		var cast: PlayerMatchState = roster.state_for(team, player.role) if roster else null
 		if cast:
 			player.state = cast
 			player.attributes = cast.effective_attributes()
