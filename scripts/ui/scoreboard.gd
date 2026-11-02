@@ -8,6 +8,10 @@ const TEAM_COLORS := [Color(0.12, 0.31, 0.55), Color(0.55, 0.12, 0.17)]
 const TEXT_COLOR := Color("e8e8f0")
 const ACCENT_COLOR := Color("f2d230")
 
+## Abreviações e cores dos times dos lados A e B (definidas pela partida).
+var team_names: Array[String] = ["A", "B"]
+var team_colors: Array[Color] = [TEAM_COLORS[0], TEAM_COLORS[1]]
+
 var _bar := _Bar.new()
 var _banner := Label.new()
 var _overlay_time := 0.0
@@ -44,6 +48,8 @@ func show_rules(rules: GameRules, banner: String) -> void:
 		"situation": rules.down_and_distance(),
 		"possession": rules.possession,
 		"ball": _ball_text(rules),
+		"names": team_names.duplicate(),
+		"colors": team_colors.duplicate(),
 		"timeouts": rules.timeouts.duplicate(),
 		"game_over": rules.game_over,
 	}
@@ -51,8 +57,13 @@ func show_rules(rules: GameRules, banner: String) -> void:
 	if data != _bar.data:
 		_bar.data = data
 		if rules.game_over:
-			show_overlay("FINAL", "A %d  x  B %d" % [rules.score[0], rules.score[1]], 0.0)
+			show_overlay("FINAL", score_line(rules), 0.0)
 		_bar.queue_redraw()
+
+
+## "TMA 7  x  TMB 3", usado nas telas de fim de quarto e fim de jogo.
+func score_line(rules: GameRules) -> String:
+	return "%s %d  x  %s %d" % [team_names[0], rules.score[0], team_names[1], rules.score[1]]
 
 
 ## Tela simples sobre o campo. seconds <= 0 deixa a tela fixa (fim de jogo).
@@ -65,8 +76,7 @@ func show_overlay(title: String, subtitle: String, seconds: float) -> void:
 
 func _ball_text(rules: GameRules) -> String:
 	var spot := rules.ball_on if rules.ball_on <= 50.0 else 100.0 - rules.ball_on
-	var teams: Array[String] = ["A", "B"]
-	var side: String = teams[rules.possession] if rules.ball_on <= 50.0 else teams[1 - rules.possession]
+	var side: String = team_names[rules.possession] if rules.ball_on <= 50.0 else team_names[1 - rules.possession]
 	return "%s %d" % [side, int(round(spot))]
 
 
@@ -91,11 +101,13 @@ class _Bar extends Control:
 	func _draw_bar(font: Font) -> void:
 		draw_rect(Rect2(0, 0, 512, Scoreboard.BAR_HEIGHT), Color(0.02, 0.03, 0.08, 0.85))
 		draw_rect(Rect2(0, Scoreboard.BAR_HEIGHT, 512, 1), Color(0.85, 0.85, 0.95, 0.8))
-		var names := ["A", "B"]
+		var names: Array = data["names"]
 		for i in 2:
 			var x := i * 92.0
-			draw_rect(Rect2(x, 0, 90, 22), Scoreboard.TEAM_COLORS[i])
-			draw_string(font, Vector2(x + 6, 16), "%s  %d" % [names[i], data["score"][i]], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Scoreboard.TEXT_COLOR)
+			var fill: Color = data["colors"][i]
+			var ink := TeamStyle.text_on(fill)
+			draw_rect(Rect2(x, 0, 90, 22), fill)
+			draw_string(font, Vector2(x + 6, 16), "%s  %d" % [names[i], data["score"][i]], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, ink)
 			for t in data["timeouts"][i]:  # um traço por timeout restante
 				draw_rect(Rect2(x + 6 + t * 12, 25, 9, 3), Scoreboard.TEXT_COLOR)
 			if data["possession"] == i:

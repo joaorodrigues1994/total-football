@@ -13,6 +13,9 @@ const FIRST_DOWN_LINE := Color("f2d230")
 ## Posição x (px) das linhas de scrimmage e de first down; negativo = escondida. Definidas pela partida.
 var scrimmage_x := -1.0
 var first_down_x := -1.0
+## Cores das endzones (esquerda = time do lado A, direita = time do lado B); definidas pela partida.
+var endzone_left := ENDZONE_LEFT
+var endzone_right := ENDZONE_RIGHT
 
 var _grass_noise: Texture2D = load("res://assets/field/grass_noise.png")
 
@@ -32,8 +35,8 @@ func _draw() -> void:
 		_quad(cx, x, x + FieldConstants.yards_to_px(5.0), h, GRASS_A if i % 2 == 0 else GRASS_B)
 
 	var ez_w := FieldConstants.yards_to_px(FieldConstants.ENDZONE_YARDS)
-	_quad(cx, 0.0, ez_w, h, ENDZONE_LEFT)
-	_quad(cx, total_w - ez_w, total_w, h, ENDZONE_RIGHT)
+	_quad(cx, 0.0, ez_w, h, endzone_left)
+	_quad(cx, total_w - ez_w, total_w, h, endzone_right)
 
 	# Textura pontilhada da grama por cima das cores.
 	var x0 := maxf(0.0, cx - 420.0)

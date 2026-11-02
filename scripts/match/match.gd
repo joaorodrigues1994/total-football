@@ -133,8 +133,19 @@ func _load_roster() -> void:
 	var registry := TeamRegistry.new()
 	if registry.load_all():
 		roster = MatchRoster.new(registry.teams[DEFAULT_TEAM_IDS[0]], registry.teams[DEFAULT_TEAM_IDS[1]])
+		_apply_team_style()
 	else:
 		push_warning("dados de times inválidos, usando atributos por papel: %s" % str(registry.errors))
+
+
+## Abreviações e cores dos times no placar e nas endzones.
+func _apply_team_style() -> void:
+	_hud.team_names = [roster.teams[0].abbreviation, roster.teams[1].abbreviation]
+	_hud.team_colors = [roster.teams[0].primary_color, roster.teams[1].primary_color]
+	var field := get_parent().get_node_or_null("Field")
+	if field:
+		field.endzone_left = roster.teams[0].primary_color
+		field.endzone_right = roster.teams[1].primary_color
 
 
 func _physics_process(delta: float) -> void:
@@ -148,7 +159,7 @@ func _physics_process(delta: float) -> void:
 	if rules.tick(delta):  # quarto acabou entre jogadas
 		_show_message("END OF QUARTER")
 		if not rules.game_over:
-			_hud.show_overlay("END OF Q%d" % (rules.quarter - 1), "A %d  x  B %d" % [rules.score[0], rules.score[1]], 2.0)
+			_hud.show_overlay("END OF Q%d" % (rules.quarter - 1), _hud.score_line(rules), 2.0)
 		_setup()
 		return
 	match state:
@@ -297,7 +308,7 @@ func _update_selection(delta: float) -> bool:
 		return false
 	if Input.is_action_just_pressed("btn_timeout") and rules.use_timeout(HUMAN_TEAM):
 		_play_clock.start()
-		_show_message("TIMEOUT  %s" % ("A" if HUMAN_TEAM == 0 else "B"))
+		_show_message("TIMEOUT  %s" % _hud.team_names[HUMAN_TEAM])
 	var human_choice := _off_choice if human_side == Side.OFFENSE else _def_choice
 	if human_choice.is_empty():
 		_poll_human_choice()
@@ -387,6 +398,7 @@ func _refresh_menu() -> void:
 		"seconds": _play_clock.seconds_left(),
 		"warning": _play_clock.is_warning(),
 		"timeouts": rules.timeouts,
+		"names": _hud.team_names,
 		"fourth_down": offense_side and rules.down == 4 and rules.next_play == GameRules.Next.SCRIMMAGE,
 	})
 
@@ -631,7 +643,7 @@ func _stop_everything(result: String, events: Dictionary, banner: String) -> voi
 		p.shove = Vector2.ZERO
 		p.block_pose = ""
 	if events["quarter_ended"] and not events["game_over"]:
-		_hud.show_overlay("END OF Q%d" % (rules.quarter - 1), "A %d  x  B %d" % [rules.score[0], rules.score[1]], 2.0)
+		_hud.show_overlay("END OF Q%d" % (rules.quarter - 1), _hud.score_line(rules), 2.0)
 	_show_message("FINAL" if events["game_over"] else banner)
 
 
@@ -1061,6 +1073,10 @@ func _spawn(slots: Array, team: Player.Team, facing_dir: float) -> Array[Player]
 		player.team = team
 		player.role = slot["role"]
 		var cast: PlayerMatchState = roster.state_for(team, player.role) if roster else null
+		if roster:
+			var club: TeamData = roster.teams[team]
+			player.uniform_sheet = TeamSprites.sheet_for(club.primary_color, club.secondary_color)
+			player.marker_color = TeamStyle.marker_color(club.primary_color)
 		if cast:
 			player.state = cast
 			player.attributes = cast.effective_attributes()

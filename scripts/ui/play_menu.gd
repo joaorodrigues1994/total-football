@@ -52,7 +52,8 @@ class _Canvas extends Control:
 		var clock_color: Color = PlayMenu.WARNING_COLOR if info["warning"] else PlayMenu.TEXT_COLOR
 		draw_string(font, Vector2(380, 348), "PLAY CLOCK %02d" % info["seconds"], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, clock_color)
 		var to: Array = info["timeouts"]
-		draw_string(font, Vector2(8, 442), "T: TIMEOUT   A:%d B:%d" % [to[0], to[1]], HORIZONTAL_ALIGNMENT_LEFT, -1, 9, PlayMenu.TEXT_COLOR)
+		var names: Array = info["names"]
+		draw_string(font, Vector2(8, 442), "T: TIMEOUT   %s:%d %s:%d" % [names[0], to[0], names[1], to[1]], HORIZONTAL_ALIGNMENT_LEFT, -1, 9, PlayMenu.TEXT_COLOR)
 		if info["fourth_down"]:
 			draw_string(font, Vector2(190, 442), "P: PUNT   G: FIELD GOAL", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, PlayMenu.SELECTED_COLOR)
 		var heads := {"a": "RUN" if info["offense"] else "RUN DEFENSE", "s": "PASS" if info["offense"] else "PASS DEFENSE"}

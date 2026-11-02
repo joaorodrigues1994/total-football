@@ -19,6 +19,9 @@ signal downed
 @export var role := ""
 ## Estado do jogador cadastrado nesta partida (identidade em state.data); null em jogadores sem cadastro.
 var state: PlayerMatchState
+## Uniforme e cor do marcador do time em campo (definidos pela partida); sem eles vale o visual antigo A/B.
+var uniform_sheet: Texture2D
+var marker_color := Color(0.0, 0.0, 0.0, 0.0)
 
 ## Indica (com o "P") que o jogador humano controla este atleta.
 var is_controlled := false:
@@ -61,10 +64,15 @@ var _target_marker := TargetMarker.new()
 func _ready() -> void:
 	if attributes == null:
 		attributes = PlayerAttributes.new()
-	var sheet: Texture2D = load("res://assets/sprites/player_team_%s.png" % ("a" if team == Team.A else "b"))
+	var sheet: Texture2D = uniform_sheet
+	if sheet == null:
+		sheet = load("res://assets/sprites/player_team_%s.png" % ("a" if team == Team.A else "b"))
 	_sprite.sprite_frames = PlayerSprites.build(sheet)
 	_sprite.offset = Vector2(0, -2)
-	_marker.color = Color(0.35, 0.55, 1.0) if team == Team.A else Color(1.0, 0.35, 0.35)
+	if marker_color.a > 0.0:
+		_marker.color = marker_color
+	else:
+		_marker.color = Color(0.35, 0.55, 1.0) if team == Team.A else Color(1.0, 0.35, 0.35)
 	_marker.z_index = 10
 	_marker.visible = is_controlled
 	_sprite.add_child(_marker)
