@@ -725,8 +725,9 @@ func _throw() -> void:
 	var from := _hands(_qb)
 	var t := from.distance_to(receiver.global_position) / BALL_SPEED
 	var aim := receiver.global_position
-	for i in 3:  # passe com antecedência: mira onde o recebedor estará
-		aim = receiver.global_position + receiver.velocity * t
+	var speed := FieldConstants.yards_to_px(receiver.attributes.max_speed_yards())
+	for i in 3:  # passe com antecedência: mira onde o recebedor estará seguindo a rota
+		aim = _runners[_target_index].position_after(t, speed)
 		t = from.distance_to(aim) / BALL_SPEED
 	aim.x = clampf(aim.x, 0.0, FieldConstants.yards_to_px(FieldConstants.TOTAL_YARDS))
 	aim.y = clampf(aim.y, 0.0, FieldConstants.yards_to_px(FieldConstants.WIDTH_YARDS))

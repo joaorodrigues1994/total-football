@@ -63,6 +63,7 @@ Repositório público: https://github.com/joaorodrigues1994/total-football (bran
 - **Bola no ar:** defensor sozinho perto do ponto de queda (`CATCH_RADIUS` 20) = intercepta. Em **disputa** o recebedor-alvo pesa `RECEIVER_EDGE` 2× no sorteio por `receiving` (`_defender_wins_ball`); se o defensor vence só intercepta com `INTERCEPT_AFTER_WIN` 25 %, senão passe quebrado (`_end_play("incomplete")`, sem mensagem). Antes eram ~44 % de interceptações (cobertura colada gerava disputa em ~90 % dos passes); agora ~9 % (64 passes), completos ~62 %, incompletos ~28 %. Valores sugeridos, não vêm do TSB3. Não existe fumble.
 - Defesa humana mantém o controle durante o voo do passe e depois da recepção; na interceptação o antigo ataque recebe `DefenderAI` e persegue o portador.
 - Poses de chute: `kick` e `hold`; spritesheet com linhas block, beaten, kick, hold no fim.
+- **Mira do passe humano (`Match._throw`):** usa `RouteRunner.position_after(t, velocidade)` (como o `QbBrain`) em vez de `velocity*t`; antes a bola caía 4–7 jd à frente do recebedor em rota (interceptações no MEDIUM), agora o erro médio é ~1 jd.
 
 ## Números de referência (headless, CPU ataca, humano defende)
 - Corridas (BASE, 3 sementes ~27 jogadas cada): média ~5,3 jd, mediana ~5, 10+ jd ~15 %, perdas ~5 %, maior ~14 jd. Antes das mudanças: média ~4,2, mediana ~1,5, perdas ~16 %, ocasional corrida de 60 jd. FULL BOX: média ~3,3, mediana 2–4, 10+ jd ~5 %, defensores agrupados 2,7 → 5,2. CONTAIN L ~5,1, R ~4,5. O ganho da mediana vem sobretudo do RB que enxerga aliados.
