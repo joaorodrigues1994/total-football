@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PlayerData" format=3]
+
+[ext_resource type="Script" path="res://scripts/entities/player_attributes.gd" id="1_jrgi6"]
+[ext_resource type="Script" path="res://scripts/data/player_data.gd" id="2_dafi3"]
+
+[sub_resource type="Resource" id="Resource_5t2j6"]
+script = ExtResource("1_jrgi6")
+hitting_power = 72
+
+[resource]
+script = ExtResource("2_dafi3")
+id = "gen_a_lg"
+display_name = "Jogador A-LG"
+position = "OG"
+attributes = SubResource("Resource_5t2j6")

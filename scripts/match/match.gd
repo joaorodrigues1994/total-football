@@ -9,6 +9,7 @@ enum Side { OFFENSE, DEFENSE }
 
 ## O humano controla o Time A.
 const HUMAN_TEAM := 0
+const DEFAULT_TEAM_IDS := ["gen_a", "gen_b"]
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const STANCE_ROLES := ["LT", "LG", "C", "RG", "RT", "TE", "LDE", "LDT", "RDT", "RDE"]
 const START_ROLES := ["WR1", "WR2", "WR3"]
@@ -69,6 +70,8 @@ var defense_play := {}
 var offense: Array[Player] = []
 var defense: Array[Player] = []
 var scrimmage_spot := Vector2.ZERO
+## Elencos dos dois lados (null = sem dados carregados; todos os jogadores usam PlayerAttributes.for_role).
+var roster: MatchRoster
 
 var _controller: HumanController
 var _hud := Scoreboard.new()
@@ -116,12 +119,22 @@ var _dropback_x := 0.0
 
 func _ready() -> void:
 	InputSetup.ensure()
+	_load_roster()
 	add_child(_hud)
 	add_child(_menu)
 	_block_system = BlockSystem.new()
 	_block_system.protect_fn = _block_protect_point
 	add_child(_block_system)  # antes dos jogadores: atualiza o empurrão antes de eles se moverem
 	_setup()
+
+
+## Lado A = gen_a, lado B = gen_b. Falha de dados não impede a partida (fallback por papel).
+func _load_roster() -> void:
+	var registry := TeamRegistry.new()
+	if registry.load_all():
+		roster = MatchRoster.new(registry.teams[DEFAULT_TEAM_IDS[0]], registry.teams[DEFAULT_TEAM_IDS[1]])
+	else:
+		push_warning("dados de times inválidos, usando atributos por papel: %s" % str(registry.errors))
 
 
 func _physics_process(delta: float) -> void:
@@ -1047,7 +1060,15 @@ func _spawn(slots: Array, team: Player.Team, facing_dir: float) -> Array[Player]
 		var player: Player = PLAYER_SCENE.instantiate()
 		player.team = team
 		player.role = slot["role"]
-		player.attributes = PlayerAttributes.for_role(player.role)
+		# Só os jogadores de scrimmage vêm do elenco; chutes e retornos seguem por papel até a etapa 3.
+		var cast: PlayerMatchState = null
+		if roster and play_kind == PlayKind.SCRIMMAGE:
+			cast = roster.state_for(team, player.role)
+		if cast:
+			player.state = cast
+			player.attributes = cast.effective_attributes()
+		else:
+			player.attributes = PlayerAttributes.for_role(player.role)
 		player.facing = Vector2(facing_dir, 0.0)
 		player.pose = _pose_for(player.role)
 		player.position = scrimmage_spot + slot["pos"] * attack_dir * FieldConstants.PX_PER_YARD

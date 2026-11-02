@@ -17,6 +17,8 @@ signal downed
 
 @export var team := Team.A
 @export var role := ""
+## Estado do jogador cadastrado nesta partida (identidade em state.data); null em jogadores sem cadastro.
+var state: PlayerMatchState
 
 ## Indica (com o "P") que o jogador humano controla este atleta.
 var is_controlled := false:
@@ -76,6 +78,11 @@ func _process(_delta: float) -> void:
 	# Só visual: desloca o sprite para acompanhar a perspectiva do campo.
 	_sprite.position.x = FieldPerspective.project_x(
 			global_position.x, global_position.y, FieldPerspective.camera_x(self)) - global_position.x
+
+
+## Id do PlayerData; vazio se o jogador não vem de um elenco.
+func player_id() -> String:
+	return state.data.id if state else ""
 
 
 ## Finta: durante ela o portador escapa de tackles.

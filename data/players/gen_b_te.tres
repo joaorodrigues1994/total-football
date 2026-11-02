@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PlayerData" format=3]
+
+[ext_resource type="Script" path="res://scripts/entities/player_attributes.gd" id="1_q0ooh"]
+[ext_resource type="Script" path="res://scripts/data/player_data.gd" id="2_sxhwi"]
+
+[sub_resource type="Resource" id="Resource_t3nus"]
+script = ExtResource("1_q0ooh")
+hitting_power = 60
+
+[resource]
+script = ExtResource("2_sxhwi")
+id = "gen_b_te"
+display_name = "Jogador B-TE"
+position = "TE"
+attributes = SubResource("Resource_t3nus")

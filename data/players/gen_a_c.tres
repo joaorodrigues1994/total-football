@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PlayerData" format=3]
+
+[ext_resource type="Script" path="res://scripts/entities/player_attributes.gd" id="1_c1khn"]
+[ext_resource type="Script" path="res://scripts/data/player_data.gd" id="2_svs2f"]
+
+[sub_resource type="Resource" id="Resource_hvsex"]
+script = ExtResource("1_c1khn")
+hitting_power = 72
+
+[resource]
+script = ExtResource("2_svs2f")
+id = "gen_a_c"
+display_name = "Jogador A-C"
+position = "C"
+attributes = SubResource("Resource_hvsex")
