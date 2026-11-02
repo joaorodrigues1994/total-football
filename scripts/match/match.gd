@@ -85,6 +85,8 @@ var _receivers: Array[Player] = []
 var _block_system: BlockSystem
 var _play_clock := PlayClock.new()
 var _menu := PlayMenu.new()
+var _sub := SubstitutionController.new()
+var _sub_panel := SubstitutionPanel.new()
 ## Escolhas do menu: jogada do Playbook, ou {"kick": PlayKind} (punt/field goal). Vazio = ainda não escolheu.
 var _off_choice := {}
 var _def_choice := {}
@@ -122,6 +124,8 @@ func _ready() -> void:
 	_load_roster()
 	add_child(_hud)
 	add_child(_menu)
+	add_child(_sub_panel)
+	_sub.substituted.connect(_on_substituted)
 	_block_system = BlockSystem.new()
 	_block_system.protect_fn = _block_protect_point
 	add_child(_block_system)  # antes dos jogadores: atualiza o empurrão antes de eles se moverem
@@ -310,13 +314,52 @@ func _update_selection(delta: float) -> bool:
 		_play_clock.start()
 		_show_message("TIMEOUT  %s" % _hud.team_names[HUMAN_TEAM])
 	var human_choice := _off_choice if human_side == Side.OFFENSE else _def_choice
-	if human_choice.is_empty():
+	if _sub.is_open:  # com o painel aberto o play clock fica parado e o menu de jogadas não recebe comandos
+		_poll_substitution()
+		_sub_panel.refresh(_sub.info())
+		return false
+	if human_choice.is_empty() and roster and Input.is_action_just_pressed("btn_sub"):
+		_sub.open(roster.lineups[HUMAN_TEAM], _substitution_slots())
+	elif human_choice.is_empty():
 		_poll_human_choice()
+	if _sub.is_open:
+		_sub_panel.refresh(_sub.info())
+		return false
 	if _play_clock.tick(delta):
 		return _play_clock_expired()
 	if not _off_choice.is_empty() and not _def_choice.is_empty():
 		_confirm_selection()
 	return false
+
+
+## Vagas que o humano pode substituir nesta jogada: as 11 do ataque ou da defesa em campo.
+func _substitution_slots() -> Array[String]:
+	var slots: Array[String] = []
+	for slot in (Formation.OFFENSE if human_side == Side.OFFENSE else Formation.DEFENSE):
+		slots.append(slot["role"])
+	return slots
+
+
+func _poll_substitution() -> void:
+	for pair in [["ui_up", "up"], ["ui_down", "down"], ["ui_left", "left"], ["ui_right", "right"],
+			["btn_a", "confirm"], ["btn_s", "cancel"], ["btn_sub", "cancel"]]:
+		if Input.is_action_just_pressed(pair[0]):
+			_sub.press(pair[1])
+			return
+
+
+## Quem entrou assume a vaga já nesta formação (os nós continuam os mesmos; mudam identidade e atributos).
+func _on_substituted() -> void:
+	for p in offense + defense:
+		if int(p.team) == HUMAN_TEAM:
+			_assign_cast(p)
+	_show_message("SUBSTITUTION")
+
+
+func _assign_cast(player: Player) -> void:
+	var cast: PlayerMatchState = roster.state_for(player.team, player.role) if roster else null
+	player.state = cast
+	player.attributes = cast.effective_attributes() if cast else PlayerAttributes.for_role(player.role)
 
 
 ## Direcional + A (terrestre / contra corrida) ou + S (aérea / contra passe); no 4º down também P e G.
@@ -390,7 +433,7 @@ func _enter_selection() -> void:
 func _refresh_menu() -> void:
 	var offense_side := human_side == Side.OFFENSE
 	_menu.refresh({
-		"visible": state == State.PLAY_SELECTION and not rules.game_over,
+		"visible": state == State.PLAY_SELECTION and not rules.game_over and not _sub.is_open,
 		"offense": offense_side,
 		"plays": Playbook.OFFENSE if offense_side else Playbook.DEFENSE,
 		"selected": _human_key,
@@ -399,6 +442,7 @@ func _refresh_menu() -> void:
 		"warning": _play_clock.is_warning(),
 		"timeouts": rules.timeouts,
 		"names": _hud.team_names,
+		"can_sub": roster != null,
 		"fourth_down": offense_side and rules.down == 4 and rules.next_play == GameRules.Next.SCRIMMAGE,
 	})
 
@@ -1072,16 +1116,11 @@ func _spawn(slots: Array, team: Player.Team, facing_dir: float) -> Array[Player]
 		var player: Player = PLAYER_SCENE.instantiate()
 		player.team = team
 		player.role = slot["role"]
-		var cast: PlayerMatchState = roster.state_for(team, player.role) if roster else null
 		if roster:
 			var club: TeamData = roster.teams[team]
 			player.uniform_sheet = TeamSprites.sheet_for(club.primary_color, club.secondary_color)
 			player.marker_color = TeamStyle.marker_color(club.primary_color)
-		if cast:
-			player.state = cast
-			player.attributes = cast.effective_attributes()
-		else:
-			player.attributes = PlayerAttributes.for_role(player.role)
+		_assign_cast(player)
 		player.facing = Vector2(facing_dir, 0.0)
 		player.pose = _pose_for(player.role)
 		player.position = scrimmage_spot + slot["pos"] * attack_dir * FieldConstants.PX_PER_YARD

@@ -11,6 +11,7 @@ const KEYS := {
 	"btn_timeout": KEY_T,
 	"btn_punt": KEY_P,
 	"btn_fg": KEY_G,
+	"btn_sub": KEY_U,
 }
 
 

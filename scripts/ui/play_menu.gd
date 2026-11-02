@@ -54,6 +54,8 @@ class _Canvas extends Control:
 		var to: Array = info["timeouts"]
 		var names: Array = info["names"]
 		draw_string(font, Vector2(8, 442), "T: TIMEOUT   %s:%d %s:%d" % [names[0], to[0], names[1], to[1]], HORIZONTAL_ALIGNMENT_LEFT, -1, 9, PlayMenu.TEXT_COLOR)
+		if info.get("can_sub", false):
+			draw_string(font, Vector2(130, 442), "U: SUB", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, PlayMenu.TEXT_COLOR)
 		if info["fourth_down"]:
 			draw_string(font, Vector2(190, 442), "P: PUNT   G: FIELD GOAL", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, PlayMenu.SELECTED_COLOR)
 		var heads := {"a": "RUN" if info["offense"] else "RUN DEFENSE", "s": "PASS" if info["offense"] else "PASS DEFENSE"}
